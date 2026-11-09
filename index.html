@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Planejamento financeiro – Cristian & Pedro</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#0e6b7c">
+</head>
+<body>
+<header>
+  <h1>Planejamento financeiro</h1>
+  <div class="view">
+    Visão:
+    <select id="view">
+      <option value="casal">Casal (tudo)</option>
+      <option value="cristian">Cristian (próprio + parte do conjunto)</option>
+      <option value="pedro">Pedro (próprio + parte do conjunto)</option>
+      <option value="conjunto">Só Conjunto</option>
+    </select>
+  </div>
+  <div id="meta" class="note" style="color:#cfe0f1"></div>
+  <div id="sync" class="note" style="color:#cfe0f1"></div>
+  <nav id="tabs">
+    <button data-tab="geral" class="on">Visão geral</button>
+    <button data-tab="mes">Visão mensal</button>
+    <button data-tab="fluxo">Fluxo de caixa</button>
+    <button data-tab="cartao">Cartão</button>
+    <button data-tab="lanc">Lançamentos</button>
+    <button data-tab="imp">Importar / Revisar</button>
+    <button data-tab="hist">Histórico</button>
+    <button data-tab="fora">Fora do cartão</button>
+    <button data-tab="prem">Premissas</button>
+    <span class="sep"></span>
+    <button data-tab="metas">Metas</button>
+    <button data-tab="planos">Planos</button>
+    <button data-tab="cen">Cenários</button>
+  </nav>
+</header>
+<main id="main"></main>
+<script src="lib/xlsx.full.min.js"></script>
+<script src="lib/chart.umd.js"></script>
+<script src="config.js"></script>
+<script src="lib/supabase.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
