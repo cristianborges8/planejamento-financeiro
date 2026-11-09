@@ -55,7 +55,7 @@ Teste local: abra `index.html` no navegador. Depois de publicar, atualize com Cm
 
 - Só entram nos cálculos itens ativos, validados e com tipo diferente de `ignorar`.
 - Tipos: parcelada, fixa, assinatura mensal, assinatura anual, variável, ignorar.
-- Mês 0 é a fatura real do mês base. Nos meses seguintes: parcelas enquanto k ≤ total − atual, fixas até o `fim`, anuais a cada 12 meses e variáveis pela estimativa.
+- Mês 0 é a fatura real do mês base. Nos meses seguintes: parcelas enquanto k ≤ total − atual, fixas até o `fim`, anuais a cada 12 meses (a partir de qualquer fatura em que apareceram, até o `fim`) e variáveis pela estimativa.
 - Itens "Conjunto" são divididos pelo rateio %. O padrão é 50/50.
 - Itens fora do cartão anuais cobram só no mês de início de cada ano. O reajuste é aplicado a cada 12 meses.
 
@@ -71,4 +71,3 @@ Teste local: abra `index.html` no navegador. Depois de publicar, atualize com Cm
 - Saldo inicial, saldo e depósito do FGTS, IPVA e valores de metas ainda precisam ser preenchidos.
 - Parcelas do carro (R$ 2.378,59 a partir de jan/27) estão sem data de fim. Preencha "Parcelas".
 - A estimativa de variáveis usa os totais de outubro.
-- Código sem uso: `rResumo` e `drawCharts`.

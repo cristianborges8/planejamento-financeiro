@@ -1,4 +1,4 @@
-const C='fin-v1',A=['./','index.html','style.css','app.js','config.js','manifest.webmanifest','icon.svg','lib/xlsx.full.min.js','lib/chart.umd.js','lib/supabase.js'];
+const C='fin-v2',A=['./','index.html','style.css','app.js','config.js','manifest.webmanifest','icon.svg','lib/xlsx.full.min.js','lib/chart.umd.js','lib/supabase.js'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(A))));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x))))));
 self.addEventListener('fetch',e=>{
