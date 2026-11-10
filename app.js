@@ -65,7 +65,16 @@ function mig(d){
   });
   return d;
 }
+const EST_PRESETS=[
+  {nome:'Gasolina',cat:'Transporte',quem:'Conjunto'},
+  {nome:'Alimentação fora',cat:'Alimentação',quem:'Conjunto'},
+  {nome:'Mercado',cat:'Mercado',quem:'Conjunto'},
+  {nome:'Delivery / iFood',cat:'Alimentação',quem:'Conjunto'},
+  {nome:'Farmácia',cat:'Saúde',quem:'Conjunto'},
+  {nome:'Lazer',cat:'Lazer',quem:'Conjunto'}
+];
 let S=load(),view='casal',tab='geral',MS=null,charts=[],IMP=null,rulesOpen=false,currentUser=null,SEL=new Set();
+let geralMode='linhas',showPastMatrix=false,openVarQ=new Set(),openMesDet=new Set();
 const F={quem:'',tipo:'',txt:'',fat:null,rev:false,hf:null,rtxt:''};
 const cur=x=>x.fatura===S.settings.base;
 const live=x=>x.ativo&&!x.rev&&x.tipo!=='ignorar';
@@ -96,6 +105,7 @@ const diffM=(a,b)=>(+b.slice(0,4)-+a.slice(0,4))*12+(+b.slice(5)-+a.slice(5));
 const lab=ym=>MN[+ym.slice(5)-1]+'/'+ym.slice(2,4);
 const brl=v=>(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const num=v=>(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const cellN=v=>v?num(v):'<span class="z">–</span>';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cls=v=>v<0?'neg':'';
 const months=(n=S.settings.horizon)=>Array.from({length:n+1},(_,k)=>addM(S.settings.base,k));
@@ -107,6 +117,12 @@ function weight(q){
     case 'pedro':return q==='Pedro'?1:q==='Cristian'?0:0.5;
     default:return q==='Conjunto'?1:0;
   }
+}
+function split(fat=S.settings.base){
+  const s={Cristian:0,Pedro:0,Conjunto:0};
+  S.tx.forEach(x=>{if(x.fatura===fat&&live(x))s[x.quem]=(s[x.quem]||0)+x.valor});
+  const m=s.Conjunto*0.5;
+  return {...s,total:s.Cristian+s.Pedro+s.Conjunto,payC:s.Cristian+m,payP:s.Pedro+m};
 }
 function txAmount(x,k){
   if(!live(x)||x.tipo==='variavel')return 0;
@@ -126,6 +142,14 @@ function txAmount(x,k){
   }
   return 0;
 }
+function txValAt(x,ym){
+  if(!live(x))return 0;
+  const base=S.settings.base;
+  if(ym<base)return x.fatura===ym?x.valor:0;
+  const k=diffM(base,ym);
+  if(x.tipo==='variavel')return k===0&&cur(x)?x.valor:0;
+  return txAmount(x,k);
+}
 const vItemActive=(v,ym)=>v.ativo&&v.valor>0&&(!v.inicio||ym>=v.inicio)&&(!v.fim||ym<=v.fim);
 function varAt(q,k){
   if(k===0)return S.tx.filter(x=>live(x)&&x.tipo==='variavel'&&x.quem===q&&cur(x)).reduce((a,x)=>a+x.valor,0);
@@ -141,21 +165,21 @@ function compute(n){
   const incP=!!S.settings.includePlans,E=S.extras,rr=(E.reserva?.rend||0)/100;
   let res=E.reserva?.saldo||0;
   return months(n).map((ym,k)=>{
-    const g={parcelas:0,fixas:0,assinaturas:0,variaveis:0},byQ={Cristian:0,Pedro:0,Conjunto:0};
-    S.tx.forEach(x=>{const a=txAmount(x,k);if(a){g[GROUP[x.tipo]]+=a*weight(x.quem);byQ[x.quem]+=a}});
-    if(incP)E.compras.forEach(c=>{const np=Math.max(1,c.np||1),d=diffM(c.mes,ym);if(d>=0&&d<np){const v=c.valor/np;g.parcelas+=v*weight(c.quem);byQ[c.quem]+=v}});
-    PEOPLE.forEach(q=>{const v=varAt(q,k);g.variaveis+=v*weight(q);byQ[q]+=v});
+    const g={parcelas:0,fixas:0,assinaturas:0,variaveis:0},byQ={Cristian:0,Pedro:0,Conjunto:0},cardByQ={Cristian:0,Pedro:0,Conjunto:0},offByQ={Cristian:0,Pedro:0,Conjunto:0};
+    S.tx.forEach(x=>{const a=txAmount(x,k);if(a){g[GROUP[x.tipo]]+=a*weight(x.quem);byQ[x.quem]+=a;cardByQ[x.quem]+=a}});
+    if(incP)E.compras.forEach(c=>{const np=Math.max(1,c.np||1),d=diffM(c.mes,ym);if(d>=0&&d<np){const v=c.valor/np;g.parcelas+=v*weight(c.quem);byQ[c.quem]+=v;cardByQ[c.quem]+=v}});
+    PEOPLE.forEach(q=>{const v=varAt(q,k);g.variaveis+=v*weight(q);byQ[q]+=v;cardByQ[q]+=v});
     let renda=0,fora=0;
-    S.off.forEach(o=>{if(!offActive(o,ym))return;const raw=offV(o,ym),v=raw*weight(o.quem);if(o.kind==='receita')renda+=v;else{fora+=v;byQ[o.quem]+=raw}});
+    S.off.forEach(o=>{if(!offActive(o,ym))return;const raw=offV(o,ym),v=raw*weight(o.quem);if(o.kind==='receita')renda+=v;else{fora+=v;byQ[o.quem]+=raw;offByQ[o.quem]+=raw}});
     if(incP){
       const inRes=!(E.reserva.meta&&res>=E.reserva.meta)?(E.reserva.aporte||0):0;
-      res=res*(1+rr)+inRes;fora+=inRes*weight('Conjunto');byQ.Conjunto+=inRes;
-      E.inv.forEach(i=>{if(i.inicio<=ym&&(!i.fim||ym<=i.fim)){const v=i.valor||0;fora+=v*weight(i.quem);byQ[i.quem]+=v}});
+      res=res*(1+rr)+inRes;fora+=inRes*weight('Conjunto');byQ.Conjunto+=inRes;offByQ.Conjunto+=inRes;
+      E.inv.forEach(i=>{if(i.inicio<=ym&&(!i.fim||ym<=i.fim)){const v=i.valor||0;fora+=v*weight(i.quem);byQ[i.quem]+=v;offByQ[i.quem]+=v}});
       E.saques.forEach(x=>{if(x.mes===ym&&x.destino==='caixa')renda+=(x.valor||0)*weight(x.quem)});
     }
     const comprometido=g.parcelas+g.fixas+g.assinaturas,cartao=comprometido+g.variaveis;
     const total=cartao+fora,sobra=renda-total;saldo+=sobra;
-    return {ym,k,g,byQ,renda,fora,comprometido,cartao,total,sobra,saldo};
+    return {ym,k,g,byQ,cardByQ,offByQ,renda,fora,comprometido,cartao,total,sobra,saldo};
   });
 }
 
@@ -236,21 +260,120 @@ const firstFat=()=>S.tx.map(x=>x.fatura).sort()[0]||S.settings.base;
 const allMonths=()=>{const mx=endMonth()>'2028-12'?endMonth():'2028-12';return Array.from({length:diffM(firstFat(),mx)+1},(_,i)=>addM(firstFat(),i))};
 const horizonCtrl=()=>{
   const def=nextYearDec(),curEnd=endMonth(),by=+S.settings.base.slice(0,4);
-  const optsList=[[ '',`${lab(def)} (dez do ano seguinte – padrão)`],[addM(S.settings.base,12),`${lab(addM(S.settings.base,12))} (+12 meses)`],[`${by}-12`,`${lab(by+'-12')} (fim deste ano)`],[`${by+2}-12`,`${lab((by+2)+'-12')} (dez/${String(by+2).slice(2)})`],[`${by+3}-12`,`${lab((by+3)+'-12')} (dez/${String(by+3).slice(2)})`]].filter(([v])=>!v||v>S.settings.base);
+  const optsList=[[ '',`${lab(def)} (dez do ano seguinte – padrão)`],[addM(S.settings.base,12),`${lab(addM(S.settings.base,12))} (+12 meses)`],[`${by}-12`,`${lab(by+'-12')} (fim deste ano)`],[`${by+2}-12`,`${lab((by+2)+'-12')} (dez/${String(by+2).slice(2)})`],[`${by+3}-12`,`${lab((by+3)+'-12')} (dez/${String(by+3)+'-12'.slice(2)})`]].filter(([v])=>!v||v>S.settings.base);
   const raw=S.settings.flowEnd||'';
   return `<label class="note" style="display:inline-flex;align-items:center;gap:6px">Projetar até: <select data-s="flowEnd">${optsList.map(([v,l])=>`<option value="${v}" ${raw===v?'selected':''}>${l}</option>`).join('')}</select> <span class="note">(${diffM(S.settings.base,curEnd)} meses à frente)</span></label>`;
 };
 function series(){
   const base=S.settings.base,proj=compute(Math.max(1,diffM(base,endMonth())));
   const hist=allMonths().filter(m=>m<base).map(ym=>{
-    const g={parcelas:0,fixas:0,assinaturas:0,variaveis:0},byQ={Cristian:0,Pedro:0,Conjunto:0};
-    S.tx.forEach(x=>{if(x.fatura===ym&&live(x)){g[GROUP[x.tipo]]+=x.valor*weight(x.quem);byQ[x.quem]+=x.valor}});
-    let renda=0,fora=0;S.off.forEach(o=>{if(!offActive(o,ym))return;const raw=offV(o,ym),v=raw*weight(o.quem);if(o.kind==='receita')renda+=v;else{fora+=v;byQ[o.quem]+=raw}});
-    const cartao=g.parcelas+g.fixas+g.assinaturas+g.variaveis,total=cartao+fora;
-    return {ym,k:-1,g,byQ,renda,fora,cartao,total,sobra:renda-total,saldo:null};
+    const g={parcelas:0,fixas:0,assinaturas:0,variaveis:0},byQ={Cristian:0,Pedro:0,Conjunto:0},cardByQ={Cristian:0,Pedro:0,Conjunto:0},offByQ={Cristian:0,Pedro:0,Conjunto:0};
+    S.tx.forEach(x=>{if(x.fatura===ym&&live(x)){g[GROUP[x.tipo]]+=x.valor*weight(x.quem);byQ[x.quem]+=x.valor;cardByQ[x.quem]+=x.valor}});
+    let renda=0,fora=0;S.off.forEach(o=>{if(!offActive(o,ym))return;const raw=offV(o,ym),v=raw*weight(o.quem);if(o.kind==='receita')renda+=v;else{fora+=v;byQ[o.quem]+=raw;offByQ[o.quem]+=raw}});
+    const comprometido=g.parcelas+g.fixas+g.assinaturas,cartao=comprometido+g.variaveis,total=cartao+fora;
+    return {ym,k:-1,g,byQ,cardByQ,offByQ,renda,fora,comprometido,cartao,total,sobra:renda-total,saldo:null};
   });
   return [...hist,...proj];
 }
+
+function buildItemMatrix(RRows){
+  const Ms=RRows.map(r=>r.ym),base=S.settings.base,incP=!!S.settings.includePlans,E=S.extras;
+  const sumArr=arr=>arr.reduce((a,b)=>a+b,0);
+  // 1. Receitas
+  const incItems=[];
+  S.off.filter(o=>o.kind==='receita').forEach(o=>{
+    const vals=Ms.map(ym=>offActive(o,ym)?offV(o,ym):0);
+    if(sumArr(vals)>0)incItems.push({nome:o.nome,quem:o.quem,orig:'Receita mensal',vals,tot:sumArr(vals)});
+  });
+  if(incP){
+    E.saques.filter(x=>x.destino==='caixa').forEach(x=>{
+      const vals=Ms.map(ym=>ym>=base&&x.mes===ym?(x.valor||0):0);
+      if(sumArr(vals)>0)incItems.push({nome:`Saque FGTS: ${x.nome||'Caixa'}`,quem:x.quem,orig:'Saque FGTS (Plano)',vals,tot:sumArr(vals)});
+    });
+  }
+  // 2. Despesas por grupo (Cristian, Pedro, Conjunto)
+  let res=E.reserva?.saldo||0;const rr=(E.reserva?.rend||0)/100;
+  const resByM={};
+  if(incP){
+    months(Math.max(1,diffM(base,endMonth()))).forEach(ym=>{
+      const inRes=!(E.reserva.meta&&res>=E.reserva.meta)?(E.reserva.aporte||0):0;
+      res=res*(1+rr)+inRes;resByM[ym]=inRes;
+    });
+  }
+  const groups={Cristian:[],Pedro:[],Conjunto:[]};
+  const varSub={Cristian:[],Pedro:[],Conjunto:[]};
+  const varTotByQ={Cristian:Ms.map(()=>0),Pedro:Ms.map(()=>0),Conjunto:Ms.map(()=>0)};
+  PEOPLE.forEach(q=>{
+    // A. Fora do cartão
+    S.off.filter(o=>o.kind!=='receita'&&o.quem===q).sort((a,b)=>b.valor-a.valor).forEach(o=>{
+      const vals=Ms.map(ym=>offActive(o,ym)?offV(o,ym):0);
+      if(sumArr(vals)>0)groups[q].push({nome:o.nome,cat:o.cat||'Fora do cartão',orig:`Fora do cartão${o.freq==='anual'?' · Anual':''}`,vals,tot:sumArr(vals)});
+    });
+    // B. Cartão (Fixas, Assinaturas, Parceladas)
+    S.tx.filter(x=>live(x)&&x.quem===q&&x.tipo!=='variavel').forEach(x=>{
+      const vals=Ms.map(ym=>txValAt(x,ym));
+      if(sumArr(vals)>0){
+        const endParc=x.tipo==='parcelada'&&x.tot?lab(addM(x.fatura,x.tot-x.cur)):'';
+        const orig=x.tipo==='parcelada'?`Cartão · Parc. ${x.cur}/${x.tot}${endParc?` (até ${endParc})`:''}`:
+          x.tipo==='fixa'?`Cartão · Fixa${x.fim?` (até ${lab(x.fim)})`:''}`:
+          x.tipo==='assinatura_mensal'?`Cartão · Assinatura${x.fim?` (até ${lab(x.fim)})`:''}`:'Cartão · Anual';
+        groups[q].push({nome:x.desc,cat:x.cat||'',orig,vals,tot:sumArr(vals),prio:x.tipo==='fixa'?1:x.tipo==='parcelada'?2:3});
+      }
+    });
+    // C. Estimativas futuras lançadas manualmente
+    if(S.settings.includeVar){
+      (S.settings.varItems||[]).filter(v=>v.quem===q&&v.ativo&&v.valor>0).forEach(v=>{
+        const vals=Ms.map(ym=>ym>base&&vItemActive(v,ym)?v.valor:0);
+        if(sumArr(vals)>0)groups[q].push({nome:`📌 ${v.nome}`,cat:v.cat||'Estimativa',orig:`Estimativa futura${v.fim?` (até ${lab(v.fim)})`:''}`,vals,tot:sumArr(vals),prio:4});
+      });
+    }
+    // D. Planos (compras e investimentos)
+    if(incP){
+      E.compras.filter(c=>c.quem===q).forEach(c=>{
+        const np=Math.max(1,c.np||1);
+        const vals=Ms.map(ym=>{if(ym<base)return 0;const d=diffM(c.mes,ym);return d>=0&&d<np?c.valor/np:0});
+        if(sumArr(vals)>0)groups[q].push({nome:`📋 ${c.nome}`,cat:'Plano',orig:`Compra planejada (${np}x)`,vals,tot:sumArr(vals),prio:5});
+      });
+      E.inv.filter(i=>i.quem===q).forEach(i=>{
+        const vals=Ms.map(ym=>ym>=base&&i.inicio<=ym&&(!i.fim||ym<=i.fim)?(i.valor||0):0);
+        if(sumArr(vals)>0)groups[q].push({nome:`📈 ${i.nome}`,cat:'Investimento',orig:'Aporte planejado',vals,tot:sumArr(vals),prio:5});
+      });
+      if(q==='Conjunto'){
+        const vals=Ms.map(ym=>resByM[ym]||0);
+        if(sumArr(vals)>0)groups.Conjunto.push({nome:'🛡️ Aporte Reserva de Emergência',cat:'Reserva',orig:'Plano',vals,tot:sumArr(vals),prio:5});
+      }
+    }
+    // E. Compras variáveis já lançadas na fatura
+    S.tx.filter(x=>live(x)&&x.quem===q&&x.tipo==='variavel').sort((a,b)=>b.valor-a.valor).forEach(x=>{
+      const vals=Ms.map(ym=>txValAt(x,ym));
+      const t=sumArr(vals);
+      if(t>0){
+        vals.forEach((v,idx)=>varTotByQ[q][idx]+=v);
+        varSub[q].push({nome:x.desc,cat:x.cat||'Variável',orig:`Cartão · Variável (${lab(x.fatura)})`,vals,tot:t});
+      }
+    });
+  });
+  return {Ms,incItems,groups,varSub,varTotByQ};
+}
+
+function monthDetailBox(ym){
+  const rawCard=monthItems(ym),offDesp=S.off.filter(o=>offActive(o,ym)&&o.kind!=='receita');
+  const box=(q,title,clsHdr,isConj)=>{
+    const cList=rawCard.filter(i=>i.quem===q),oList=offDesp.filter(o=>o.quem===q).map(o=>({desc:o.nome,valor:offV(o,ym),sub:'Fora do cartão'}));
+    const all=[...oList.map(x=>({nome:x.desc,orig:'Fora do cartão',val:x.valor})),...cList.map(x=>({nome:x.desc,orig:`Cartão${x.sub?' · '+x.sub:''}`,val:x.valor}))].sort((a,b)=>b.val-a.val);
+    const tot=all.reduce((a,x)=>a+x.val,0);
+    return `<div class="det-box">
+      <h4 style="color:${clsHdr}"><span>${title}</span><b>${brl(tot)}${isConj?` <small>(50%: ${brl(tot/2)})</small>`:''}</b></h4>
+      ${all.length?`<ul class="det-list">${all.map(x=>`<li><span>${esc(x.nome.slice(0,36))} <small class="note">(${x.orig})</small></span><b>${brl(x.val)}</b></li>`).join('')}</ul>`:`<div class="note">Nenhum item neste mês.</div>`}
+    </div>`;
+  };
+  return `<div class="det-grid">
+    ${box('Cristian','🔵 Individuais Cristian (100%)','var(--accent)',false)}
+    ${box('Pedro','🟠 Individuais Pedro (100%)','#d9480f',false)}
+    ${box('Conjunto','🟢 Conjuntas (Divididas 50/50)','#2b8a3e',true)}
+  </div>`;
+}
+
 function rGeral(){
   const R=series(),yrs=[...new Set(R.map(r=>r.ym.slice(0,4)))];
   const sum=(rows,f)=>rows.reduce((a,r)=>a+r[f],0);
@@ -258,6 +381,115 @@ function rGeral(){
   const C=compute(Math.max(1,diffM(base,endMonth()))),k0=C[0],k1=C[1],parcRest=C.slice(1).reduce((a,r)=>a+r.g.parcelas,0),fim=R[R.length-1],avg=C.slice(1).reduce((a,r)=>a+r.sobra,0)/(C.length-1),sp=split(base);
   const pctRenda=k0.renda?Math.round(k0.cartao/k0.renda*100):0;
   const optAtivas=(S.settings.varItems||[]).filter(v=>v.ativo&&v.valor>0).length;
+
+  // Build main table according to geralMode
+  let mainTable='';
+  if(geralMode==='linhas'){
+    const RRows=showPastMatrix?R:R.filter(r=>r.ym>=base);
+    const M=buildItemMatrix(RRows),cols=M.Ms.length+3;
+    const sumRow=fn=>RRows.map(fn).reduce((a,b)=>a+b,0);
+    const renderGroup=(q,secCls,subCls,title,code)=>{
+      const items=M.groups[q],vSub=M.varSub[q],vTot=M.varTotByQ[q],vSum=vTot.reduce((a,b)=>a+b,0),isOpen=openVarQ.has(q);
+      const totVals=RRows.map(r=>r.byQ[q]),totAll=totVals.reduce((a,b)=>a+b,0);
+      return `<tr class="sec-hdr ${secCls}"><td colspan="${cols}">${title}</td></tr>
+      ${items.map(it=>`<tr class="item-row"><td class="l"><b>${esc(it.nome.slice(0,44))}</b></td><td class="l"><span class="pill-orig">${esc(it.orig)}</span></td>${it.vals.map(v=>`<td>${cellN(v)}</td>`).join('')}<td class="bl"><b>${num(it.tot)}</b></td></tr>`).join('')}
+      ${vSum>0?`<tr class="item-row" style="cursor:pointer" data-act="tog-varq" data-q="${q}" title="Clique para expandir/recolher cada compra variável avulsa da fatura">
+        <td class="l"><span style="color:var(--accent);font-weight:600">${isOpen?'▾':'▸'} Compras variáveis lançadas na fatura (${vSub.length} itens)</span> <small class="note">(clique p/ ${isOpen?'ocultar':'ver itens'})</small></td>
+        <td class="l"><span class="pill-orig">Cartão · Fatura atual</span></td>
+        ${vTot.map(v=>`<td>${cellN(v)}</td>`).join('')}
+        <td class="bl"><b>${num(vSum)}</b></td>
+      </tr>
+      ${isOpen?vSub.map(sv=>`<tr class="item-sub"><td class="l">↳ ${esc(sv.nome.slice(0,42))}</td><td class="l"><small class="note">${esc(sv.cat)}</small></td>${sv.vals.map(v=>`<td>${cellN(v)}</td>`).join('')}<td class="bl">${num(sv.tot)}</td></tr>`).join(''):''}`:''}
+      ${!items.length&&!vSum?`<tr class="item-row"><td class="l note" colspan="${cols}">Nenhum item lançado neste grupo.</td></tr>`:''}
+      <tr class="sub-row ${subCls}"><td class="l">= SOMA ${code}</td><td class="l"><small>Subtotal das linhas acima</small></td>${totVals.map(v=>`<td>${num(v)}</td>`).join('')}<td class="bl">${num(totAll)}</td></tr>`;
+    };
+    const conj50Vals=RRows.map(r=>r.byQ.Conjunto*0.5),conj50All=conj50Vals.reduce((a,b)=>a+b,0);
+    const payCVals=RRows.map(r=>r.byQ.Cristian+r.byQ.Conjunto*0.5),payCAll=payCVals.reduce((a,b)=>a+b,0);
+    const payPVals=RRows.map(r=>r.byQ.Pedro+r.byQ.Conjunto*0.5),payPAll=payPVals.reduce((a,b)=>a+b,0);
+    mainTable=`<div class="note" style="margin-bottom:10px">Cada bloco abaixo lista <b>exatamente quais itens entram na soma</b> de cada mês, seguido pela <b>linha de subtotal (<code>= SOMA</code>)</b> correspondente. Traços (<code>–</code>) indicam meses sem cobrança daquele item.</div>
+    <div class="tw"><table>
+      <thead><tr><th class="l" style="min-width:250px">Item / Linha que entra na soma</th><th class="l">Origem / Regra</th>${RRows.map(r=>`<th class="${r.ym===base?'grp-tot':''}"><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a><br><small style="font-weight:400;text-transform:none">${r.k<0?'real':r.k===0?'atual':'proj.'}</small></th>`).join('')}<th class="bl">Soma Período</th></tr></thead>
+      <tbody>
+        <tr class="sec-hdr sec-inc"><td colspan="${cols}">💰 1. RECEITAS (ENTRADAS MENSAIS)</td></tr>
+        ${M.incItems.map(it=>`<tr class="item-row"><td class="l"><b>${esc(it.nome)}</b> <span class="tag t-${it.quem}">${it.quem}</span></td><td class="l"><span class="pill-orig">${it.orig}</span></td>${it.vals.map(v=>`<td>${cellN(v)}</td>`).join('')}<td class="bl"><b>${num(it.tot)}</b></td></tr>`).join('')}
+        <tr class="sub-row"><td class="l">= SOMA RECEITAS (A)</td><td class="l"><small>Total de entradas no mês</small></td>${RRows.map(r=>`<td>${num(r.renda)}</td>`).join('')}<td class="bl">${num(sumRow(r=>r.renda))}</td></tr>
+
+        ${renderGroup('Cristian','sec-c','sub-c','🔵 2. DESPESAS INDIVIDUAIS — CRISTIAN (100% Cristian · Não divide)','INDIVIDUAL CRISTIAN (B1)')}
+        ${renderGroup('Pedro','sec-p','sub-p','🟠 3. DESPESAS INDIVIDUAIS — PEDRO (100% Pedro · Inclui QuintoAndar na fatura)','INDIVIDUAL PEDRO (B2)')}
+        ${renderGroup('Conjunto','sec-j','sub-j','🟢 4. DESPESAS CONJUNTAS — DIVIDIDAS 50/50 (Aluguel, Carro e itens Conjunto)','CONJUNTAS 100% (C)')}
+        <tr class="sub-row sub-j50"><td class="l">↳ 50% CONJUNTO PARA CADA UM (C ÷ 2)</td><td class="l"><small>Metade p/ Cristian · Metade p/ Pedro</small></td>${conj50Vals.map(v=>`<td>${num(v)}</td>`).join('')}<td class="bl">${num(conj50All)}</td></tr>
+
+        <tr class="sec-hdr sec-end"><td colspan="${cols}">📌 5. FECHAMENTO MENSAL (COMO AS SOMAS SE JUNTAM)</td></tr>
+        <tr class="sub-row sub-c"><td class="l">= TOTAL CRISTIAN PAGA (B1 + 50% Conjunto)</td><td class="l"><small>Indiv. Cristian + 50% Conj.</small></td>${payCVals.map(v=>`<td>${num(v)}</td>`).join('')}<td class="bl">${num(payCAll)}</td></tr>
+        <tr class="sub-row sub-p"><td class="l">= TOTAL PEDRO PAGA (B2 + 50% Conjunto)</td><td class="l"><small>Indiv. Pedro + 50% Conj.</small></td>${payPVals.map(v=>`<td>${num(v)}</td>`).join('')}<td class="bl">${num(payPAll)}</td></tr>
+        <tr class="tot"><td class="l">= TOTAL GERAL DE DESPESAS (B1 + B2 + C)</td><td class="l"><small>Cristian paga + Pedro paga</small></td>${RRows.map(r=>`<td>${num(r.total)}</td>`).join('')}<td class="bl">${num(sumRow(r=>r.total))}</td></tr>
+        <tr class="sub-row"><td class="l">= SOBRA / FALTA DO MÊS (Receitas A − Despesas)</td><td class="l"><small>Resultado líquido mensal</small></td>${RRows.map(r=>`<td class="${cls(r.sobra)}">${num(r.sobra)}</td>`).join('')}<td class="bl ${cls(sumRow(r=>r.sobra))}">${num(sumRow(r=>r.sobra))}</td></tr>
+        <tr class="sub-row"><td class="l">= SALDO ACUMULADO EM CONTA</td><td class="l"><small>Caixa acumulado</small></td>${RRows.map(r=>`<td class="${cls(r.saldo)}">${r.saldo==null?'–':num(r.saldo)}</td>`).join('')}<td class="bl ${cls(RRows[RRows.length-1]?.saldo)}">${num(RRows[RRows.length-1]?.saldo||0)}</td></tr>
+      </tbody>
+    </table></div>`;
+  }else if(geralMode==='meses'){
+    mainTable=`<div class="note" style="margin-bottom:10px">As colunas estão separadas por blocos coloridos (<code>Cartão + Fora = Total do Grupo</code>). Clique em <b>▶ Itens</b> em qualquer mês para abrir os itens individuais e conjuntos daquele mês.</div>
+    <div class="tw"><table>
+      <thead>
+        <tr>
+          <th colspan="2" class="grp-hdr">Mês & Entrada</th>
+          <th colspan="3" class="grp-hdr grp-c bl">🔵 Individual Cristian (100%)</th>
+          <th colspan="3" class="grp-hdr grp-p bl">🟠 Individual Pedro (100%)</th>
+          <th colspan="4" class="grp-hdr grp-j bl">🟢 Despesas Conjuntas (50/50)</th>
+          <th colspan="2" class="grp-hdr grp-tot bl">📌 Total Pago por Pessoa</th>
+          <th colspan="3" class="grp-hdr bl">💰 Fechamento do Casal</th>
+        </tr>
+        <tr>
+          <th class="l">Mês</th><th>Renda</th>
+          <th class="bl">Cartão C</th><th>+ Fora C</th><th class="col-c">= Indiv. C</th>
+          <th class="bl">Cartão P</th><th>+ Fora P</th><th class="col-p">= Indiv. P</th>
+          <th class="bl">Cartão Conj.</th><th>+ Fora Conj.</th><th class="col-j">= Conj. 100%</th><th class="col-j">50% cada</th>
+          <th class="bl col-c">Cristian paga</th><th class="col-p">Pedro paga</th>
+          <th class="bl col-sum">Total Desp.</th><th>Sobra/falta</th><th>Saldo</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${R.map(r=>{
+          const mConj=r.byQ.Conjunto*0.5,pC=r.byQ.Cristian+mConj,pP=r.byQ.Pedro+mConj,open=openMesDet.has(r.ym);
+          return `<tr class="${r.ym===base?'tot':''}">
+            <td class="l"><button class="b g" data-act="tog-mesdet" data-ym="${r.ym}" style="padding:2px 7px;font-size:11px;margin-right:6px" title="Ver itens que entram na soma deste mês">${open?'▼':'▶'} Itens</button><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a> <small class="note">(${r.k<0?'real':r.k===0?'atual':'proj.'})</small></td>
+            <td>${num(r.renda)}</td>
+            <td class="bl">${cellN(r.cardByQ.Cristian)}</td><td>${cellN(r.offByQ.Cristian)}</td><td class="col-c">${num(r.byQ.Cristian)}</td>
+            <td class="bl">${cellN(r.cardByQ.Pedro)}</td><td>${cellN(r.offByQ.Pedro)}</td><td class="col-p">${num(r.byQ.Pedro)}</td>
+            <td class="bl">${cellN(r.cardByQ.Conjunto)}</td><td>${cellN(r.offByQ.Conjunto)}</td><td class="col-j">${num(r.byQ.Conjunto)}</td><td class="col-j">${num(mConj)}</td>
+            <td class="bl col-c">${num(pC)}</td><td class="col-p">${num(pP)}</td>
+            <td class="bl col-sum">${num(r.total)}</td><td class="${cls(r.sobra)}"><b>${num(r.sobra)}</b></td><td class="${cls(r.saldo)}">${r.saldo==null?'–':num(r.saldo)}</td>
+          </tr>
+          ${open?`<tr><td colspan="17" style="background:var(--bg);padding:8px 14px">${monthDetailBox(r.ym)}</td></tr>`:''}`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+  }else{
+    mainTable=`<div class="note" style="margin-bottom:10px">Visão por natureza do gasto: <code>Parcelas + Fixas + Assinaturas + Variáveis/Estimativas = Total Cartão</code> + <code>Fora do Cartão</code> = <code>Total Despesas</code>.</div>
+    <div class="tw"><table>
+      <thead>
+        <tr>
+          <th colspan="2" class="grp-hdr">Mês & Entrada</th>
+          <th colspan="5" class="grp-hdr grp-c bl">💳 Composição da Fatura do Cartão</th>
+          <th colspan="4" class="grp-hdr grp-tot bl">💰 Total Geral e Saldo</th>
+        </tr>
+        <tr>
+          <th class="l">Mês</th><th>Renda</th>
+          <th class="bl">Parcelas</th><th>+ Fixas</th><th>+ Assinaturas</th><th>+ Var. / Estim.</th><th class="col-sum">= Total Cartão</th>
+          <th class="bl">+ Fora do cartão</th><th class="col-sum">= Total Despesas</th><th>Sobra/falta</th><th>Saldo</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${R.map(r=>`<tr class="${r.ym===base?'tot':''}">
+          <td class="l"><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a> <small class="note">(${r.k<0?'real':r.k===0?'atual':'proj.'})</small></td>
+          <td>${num(r.renda)}</td>
+          <td class="bl">${cellN(r.g.parcelas)}</td><td>${cellN(r.g.fixas)}</td><td>${cellN(r.g.assinaturas)}</td><td>${cellN(r.g.variaveis)}</td><td class="col-sum">${num(r.cartao)}</td>
+          <td class="bl">${num(r.fora)}</td><td class="col-sum">${num(r.total)}</td><td class="${cls(r.sobra)}"><b>${num(r.sobra)}</b></td><td class="${cls(r.saldo)}">${r.saldo==null?'–':num(r.saldo)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  }
+
   return `${nrev?`<div class="warn">${nrev} lançamentos aguardando validação: ficam fora dos cálculos até você confirmar (aba Importar / Revisar).</div>`:''}
   <div class="bar" style="justify-content:space-between;margin-bottom:10px">
     ${horizonCtrl()}
@@ -274,11 +506,39 @@ function rGeral(){
   <div class="panel"><h2>Série temporal completa (${lab(R[0].ym)} a ${lab(R[R.length-1].ym)})</h2>
   <div class="note">Meses até ${lab(addM(base,-1))}: faturas reais fechadas. Em ${lab(base)}: fatura atual lançada. A partir de ${lab(addM(base,1))}: apenas despesas já programadas (parcelas, fixas e assinaturas) + estimativas que você lançar. Clique em uma barra para abrir o mês.</div>
   <canvas id="cg" height="110"></canvas></div>
-  <div class="panel"><h2>Resumo por ano</h2><div class="tw"><table><tr><th>Ano</th><th>Renda</th><th>Indiv. Cristian</th><th>Indiv. Pedro</th><th>Conjuntas (100%)</th><th>50% Conjunto (cada)</th><th>Cartão</th><th>Fora do cartão</th><th>Total despesas</th><th>Sobra/falta</th></tr>
-  ${yrs.map(y=>{const rs=R.filter(r=>r.ym.startsWith(y)),iC=rs.reduce((a,r)=>a+r.byQ.Cristian,0),iP=rs.reduce((a,r)=>a+r.byQ.Pedro,0),cj=rs.reduce((a,r)=>a+r.byQ.Conjunto,0);return `<tr><td>${y}</td><td>${num(sum(rs,'renda'))}</td><td>${num(iC)}</td><td>${num(iP)}</td><td>${num(cj)}</td><td>${num(cj/2)}</td><td>${num(sum(rs,'cartao'))}</td><td>${num(sum(rs,'fora'))}</td><td><b>${num(sum(rs,'total'))}</b></td><td class="${cls(sum(rs,'sobra'))}">${num(sum(rs,'sobra'))}</td></tr>`}).join('')}</table></div></div>
-  <div class="panel"><h2>Todos os meses (Separado: Individuais vs Conjuntas 50/50)</h2><div class="tw"><table><tr><th>Mês</th><th></th><th>Renda</th><th>Indiv. Cristian</th><th>Indiv. Pedro</th><th>Conjuntas (Total)</th><th>50% Conj. (cada)</th><th>Parcelas</th><th>Fixas</th><th>Assinaturas</th><th>Var. / Estim.</th><th>Cartão</th><th>Fora do cartão</th><th>Total</th><th>Sobra/falta</th><th>Saldo</th></tr>
-  ${R.map(r=>`<tr class="${r.ym===base?'tot':''}"><td><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a></td><td><small>${r.k<0?'real':r.k===0?'fatura atual':'projeção'}</small></td><td>${num(r.renda)}</td><td>${num(r.byQ.Cristian)}</td><td>${num(r.byQ.Pedro)}</td><td>${num(r.byQ.Conjunto)}</td><td>${num(r.byQ.Conjunto/2)}</td><td>${num(r.g.parcelas)}</td><td>${num(r.g.fixas)}</td><td>${num(r.g.assinaturas)}</td><td>${num(r.g.variaveis)}</td><td><b>${num(r.cartao)}</b></td><td>${num(r.fora)}</td><td><b>${num(r.total)}</b></td><td class="${cls(r.sobra)}">${num(r.sobra)}</td><td class="${cls(r.saldo)}">${r.saldo==null?'':num(r.saldo)}</td></tr>`).join('')}</table></div>
-  <div class="bar" style="margin-top:12px"><button class="b g" data-act="export-xlsx">Exportar projeção (xlsx)</button></div></div>`;
+  <div class="panel"><h2>Resumo por ano</h2><div class="tw"><table>
+    <thead>
+      <tr>
+        <th colspan="2" class="grp-hdr">Ano & Renda</th>
+        <th colspan="4" class="grp-hdr grp-j bl">Separação por Pessoa (Individuais 100% vs Conjuntas 50/50)</th>
+        <th colspan="2" class="grp-hdr grp-tot bl">Quanto cada um paga no ano</th>
+        <th colspan="4" class="grp-hdr bl">Fechamento Anual</th>
+      </tr>
+      <tr>
+        <th class="l">Ano</th><th>Renda</th>
+        <th class="bl col-c">Indiv. Cristian</th><th class="col-p">Indiv. Pedro</th><th class="col-j">Conjuntas (100%)</th><th class="col-j">50% Conj. (cada)</th>
+        <th class="bl col-c">Total Cristian</th><th class="col-p">Total Pedro</th>
+        <th class="bl">Cartão</th><th>Fora do cartão</th><th class="col-sum">Total Despesas</th><th>Sobra/falta</th>
+      </tr>
+    </thead>
+    <tbody>
+    ${yrs.map(y=>{const rs=R.filter(r=>r.ym.startsWith(y)),iC=rs.reduce((a,r)=>a+r.byQ.Cristian,0),iP=rs.reduce((a,r)=>a+r.byQ.Pedro,0),cj=rs.reduce((a,r)=>a+r.byQ.Conjunto,0),mCj=cj*0.5;return `<tr><td class="l"><b>${y}</b></td><td>${num(sum(rs,'renda'))}</td><td class="bl col-c">${num(iC)}</td><td class="col-p">${num(iP)}</td><td class="col-j">${num(cj)}</td><td class="col-j">${num(mCj)}</td><td class="bl col-c">${num(iC+mCj)}</td><td class="col-p">${num(iP+mCj)}</td><td class="bl">${num(sum(rs,'cartao'))}</td><td>${num(sum(rs,'fora'))}</td><td class="col-sum">${num(sum(rs,'total'))}</td><td class="${cls(sum(rs,'sobra'))}"><b>${num(sum(rs,'sobra'))}</b></td></tr>`}).join('')}
+    </tbody></table></div></div>
+  <div class="panel">
+    <div class="bar" style="justify-content:space-between;margin-bottom:10px">
+      <h2 style="margin:0">Todos os meses (Separado: Individuais vs Conjuntas 50/50)</h2>
+      <div class="bar" style="margin:0">
+        <div class="seg-bar">
+          <button data-act="gmode" data-mode="linhas" class="${geralMode==='linhas'?'on':''}">📑 Linhas que se somam (Itens × Meses)</button>
+          <button data-act="gmode" data-mode="meses" class="${geralMode==='meses'?'on':''}">📅 Resumo por Mês (Agrupado)</button>
+          <button data-act="gmode" data-mode="tipos" class="${geralMode==='tipos'?'on':''}">💳 Por Tipo (Parcelas/Fixas)</button>
+        </div>
+        ${geralMode==='linhas'?`<label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="chk-past-m" ${showPastMatrix?'checked':''}> Incluir faturas passadas</label>`:''}
+      </div>
+    </div>
+    ${mainTable}
+    <div class="bar" style="margin-top:12px"><button class="b g" data-act="export-xlsx">Exportar planilha completa (xlsx)</button></div>
+  </div>`;
 }
 function drawGeral(){
   const R=series(),L=R.map(r=>lab(r.ym));
@@ -328,7 +588,27 @@ function rMes(){
   const pend=S.tx.filter(x=>x.rev&&x.fatura===ym).length,i=Ms.indexOf(ym);
   const status=ym<base?'fatura real':ym===base?'fatura atual (lançada)':'projeção programada';
   const vLab={casal:'casal',cristian:'Cristian',pedro:'Pedro',conjunto:'Conjunto'}[view];
-  const totC=payC+offsC,totP=payP+offsP,fatOk=isPaid(ym,'fatura'),acOk=isPaid(ym,'acerto'),sobraM=renda-cartao-fora;
+  const totC=payC+offsC,totP=payP+offsP,fatOk=isPaid(ym,'fatura'),acOk=isPaid(ym,'acerto');
+
+  const buildPersonPanel=(q,title,subCls,isConj)=>{
+    const cList=rawItems.filter(x=>x.quem===q).sort((a,b)=>b.valor-a.valor);
+    const oList=offDespAll.filter(o=>o.quem===q).sort((a,b)=>(a.venc||99)-(b.venc||99));
+    const sumC=cList.reduce((a,x)=>a+x.valor,0),sumO=oList.reduce((a,o)=>a+offV(o,ym),0),totG=sumC+sumO;
+    return `<div class="panel" style="flex:1;min-width:340px">
+      <h2>${title}</h2>
+      <div class="tw"><table>
+        <thead><tr><th class="l">Item que entra na soma</th><th class="l">Origem</th><th>Parcela</th><th>Valor (100%)</th>${isConj?'<th>50% (cada)</th>':''}</tr></thead>
+        <tbody>
+          ${oList.map(o=>`<tr><td class="l"><b>${esc(o.nome)}</b></td><td class="l"><span class="pill-orig">Fora do cartão${o.venc?` · dia ${o.venc}`:''}</span></td><td>–</td><td>${num(offV(o,ym))}</td>${isConj?`<td class="col-j">${num(offV(o,ym)*0.5)}</td>`:''}</tr>`).join('')}
+          ${cList.map(x=>`<tr><td class="l">${esc(x.desc.slice(0,40))}</td><td class="l"><span class="pill-orig">Cartão · ${TIPOS[x.tipo]}</span></td><td>${x.sub||'–'}</td><td>${num(x.valor)}</td>${isConj?`<td class="col-j">${num(x.valor*0.5)}</td>`:''}</tr>`).join('')}
+          ${!oList.length&&!cList.length?`<tr><td class="l note" colspan="${isConj?5:4}">Nenhum item neste mês.</td></tr>`:''}
+          ${sumO&&sumC?`<tr class="sub-row"><td class="l" colspan="${isConj?3:3}"><small>Subtotais: Cartão ${brl(sumC)} + Fora do cartão ${brl(sumO)}</small></td><td>${num(totG)}</td>${isConj?`<td>${num(totG*0.5)}</td>`:''}</tr>`:''}
+          <tr class="sub-row ${subCls}"><td class="l">= SOMA ${isConj?'CONJUNTAS':'INDIVIDUAL '+q.toUpperCase()}</td><td></td><td></td><td>${num(totG)}</td>${isConj?`<td>${num(totG*0.5)}</td>`:''}</tr>
+        </tbody>
+      </table></div>
+    </div>`;
+  };
+
   return `<div class="panel"><div class="bar"><button class="b g" data-mes="${Ms[Math.max(0,i-1)]}">◀</button>
   <select id="msel">${Ms.map(m=>`<option value="${m}" ${m===ym?'selected':''}>${lab(m)}</option>`).join('')}</select>
   <button class="b g" data-mes="${Ms[Math.min(Ms.length-1,i+1)]}">▶</button><b style="margin-left:10px">${lab(ym)} – ${status}</b></div>
@@ -336,17 +616,57 @@ function rMes(){
   ${pend?`<div class="warn">${pend} lançamentos desta fatura ainda não validados e fora dos números abaixo.</div>`:''}
   <div class="cards">
     <div class="card"><small>Renda (${vLab})</small><b>${brl(renda)}</b><small class="sub">Cristian: ${brl(recC)} · Pedro: ${brl(recP)}</small></div>
-    <div class="card"><small>Desp. Individuais Cristian</small><b>${brl(totIndC)}</b><small class="sub">Cartão: ${brl(sp.Cristian)}${offIndC?` · Fora: ${brl(offIndC)}`:''}</small></div>
-    <div class="card"><small>Desp. Individuais Pedro</small><b>${brl(totIndP)}</b><small class="sub">Cartão (c/ QuintoAndar): ${brl(sp.Pedro)}${offIndP?` · Fora: ${brl(offIndP)}`:''}</small></div>
-    <div class="card c-warn"><small>Desp. Conjuntas (Total 100%)</small><b>${brl(totConj)}</b><small class="sub">Cartão: ${brl(sp.Conjunto)} + Aluguel/Carro: ${brl(offConj)} → <b>${brl(meioConj)} p/ cada (50/50)</b></small></div>
-    <div class="card"><small>Total Cristian (Indiv. + 50% Conj.)</small><b>${brl(totC)}</b><small class="sub">Indiv. ${brl(totIndC)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recC-totC)}">${brl(recC-totC)}</b></small></div>
-    <div class="card" style="border-top:3px solid #d9480f"><small>Total Pedro (Indiv. + 50% Conj.)</small><b>${brl(totP)}</b><small class="sub">Indiv. ${brl(totIndP)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recP-totP)}">${brl(recP-totP)}</b></small><div style="display:flex;gap:10px;margin-top:4px"><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="fatura" data-ym="${ym}" ${fatOk?'checked':''}><span class="${fatOk?'pos':''}">${fatOk?'Fatura paga ✓':'Fatura aberta'}</span></label><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="acerto" data-ym="${ym}" ${acOk?'checked':''}><span class="${acOk?'pos':''}">${acOk?'Acerto ok ✓':'Acerto pend.'}</span></label></div></div>
+    <div class="card"><small>🔵 Individuais Cristian (100%)</small><b>${brl(totIndC)}</b><small class="sub">Cartão: ${brl(sp.Cristian)}${offIndC?` + Fora: ${brl(offIndC)}`:''}</small></div>
+    <div class="card"><small>🟠 Individuais Pedro (100%)</small><b>${brl(totIndP)}</b><small class="sub">Cartão (c/ QuintoAndar): ${brl(sp.Pedro)}${offIndP?` + Fora: ${brl(offIndP)}`:''}</small></div>
+    <div class="card c-warn"><small>🟢 Conjuntas (Total 100%)</small><b>${brl(totConj)}</b><small class="sub">Cartão: ${brl(sp.Conjunto)} + Aluguel/Carro: ${brl(offConj)} → <b>${brl(meioConj)} p/ cada (50/50)</b></small></div>
+    <div class="card"><small>📌 Total Cristian (Indiv. + 50% Conj.)</small><b>${brl(totC)}</b><small class="sub">Indiv. ${brl(totIndC)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recC-totC)}">${brl(recC-totC)}</b></small></div>
+    <div class="card" style="border-top:3px solid #d9480f"><small>📌 Total Pedro (Indiv. + 50% Conj.)</small><b>${brl(totP)}</b><small class="sub">Indiv. ${brl(totIndP)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recP-totP)}">${brl(recP-totP)}</b></small><div style="display:flex;gap:10px;margin-top:4px"><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="fatura" data-ym="${ym}" ${fatOk?'checked':''}><span class="${fatOk?'pos':''}">${fatOk?'Fatura paga ✓':'Fatura aberta'}</span></label><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="acerto" data-ym="${ym}" ${acOk?'checked':''}><span class="${acOk?'pos':''}">${acOk?'Acerto ok ✓':'Acerto pend.'}</span></label></div></div>
   </div></div>
-  <div class="row"><div class="panel" style="flex:2;min-width:420px"><h2>Cartão no mês (${vLab})</h2><div class="tw"><table><tr><th class="l">Descrição</th><th class="l">Quem</th><th class="l">Tipo</th><th class="l">Categoria</th><th>Parcela</th><th>Valor</th></tr>
-  ${items.map(x=>`<tr><td class="l">${esc(x.desc.slice(0,44))}</td><td class="l"><span class="tag t-${x.quem}">${x.quem}${x.quem==='Conjunto'&&view==='casal'?' (50/50)':''}</span></td><td class="l">${TIPOS[x.tipo]}</td><td class="l">${esc(x.cat)}</td><td>${x.sub}</td><td>${num(x.valor)}</td></tr>`).join('')||'<tr><td class="l" colspan="6">Sem lançamentos validados.</td></tr>'}
-  <tr class="tot"><td class="l">Total</td><td></td><td></td><td></td><td></td><td>${num(cartao)}</td></tr></table></div></div>
-  <div class="panel" style="flex:1;min-width:320px"><h2>Por categoria (${vLab})</h2><div class="tw"><table>${Object.entries(cat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${num(v)}</td></tr>`).join('')}</table></div>
-  <h2 style="margin-top:14px">Fora do cartão (${vLab}) <span class="note">· ${nPaid}/${offDesp.length} pagas</span></h2><div class="tw"><table><tr><th class="l">Pago</th><th class="l">Item</th><th>Venc.</th><th>Valor</th></tr>${off.map(o=>{const ok=isPaid(ym,o.id);return `<tr style="${ok?'opacity:.65':''}"><td class="l">${o.kind==='receita'?'<span class="pos">✓</span>':`<input type="checkbox" data-paid="${o.id}" data-ym="${ym}" ${ok?'checked':''}>`}</td><td class="l">${esc(o.nome)} <small>(${o.quem}${o.quem==='Conjunto'?' · 50/50':''})</small></td><td>${o.venc?'dia '+o.venc:'–'}</td><td class="${o.kind==='receita'?'pos':'neg'}">${o.kind==='receita'?'+':'-'}${num(offV(o,ym)*weight(o.quem))}</td></tr>`}).join('')}</table></div></div></div>`;
+
+  <div class="panel">
+    <h2>Quadro Resumo de Fechamento em ${lab(ym)} (Como as linhas se somam)</h2>
+    <div class="tw"><table>
+      <thead>
+        <tr>
+          <th class="l">Pessoa</th>
+          <th class="bl">1. Cartão Individual (100%)</th><th>+ 50% Cartão Conjunto</th><th class="col-sum">= Paga na Fatura</th>
+          <th class="bl">2. Fora Indiv. (100%)</th><th>+ 50% Fora Conj. (Aluguel/Carro)</th><th class="col-sum">= Paga Fora do Cartão</th>
+          <th class="bl col-sum">TOTAL DESPESAS (1 + 2)</th><th>Renda no Mês</th><th>Sobra / Falta</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="l"><span class="tag t-Cristian">Cristian</span></td>
+          <td class="bl">${num(sp.Cristian)}</td><td>${num(sp.Conjunto*0.5)}</td><td class="col-c">${num(payC)}</td>
+          <td class="bl">${num(offIndC)}</td><td>${num(offConj*0.5)}</td><td class="col-c">${num(offsC)}</td>
+          <td class="bl col-c">${num(totC)}</td><td>${num(recC)}</td><td class="${cls(recC-totC)}"><b>${num(recC-totC)}</b></td>
+        </tr>
+        <tr>
+          <td class="l"><span class="tag t-Pedro">Pedro</span></td>
+          <td class="bl">${num(sp.Pedro)}</td><td>${num(sp.Conjunto*0.5)}</td><td class="col-p">${num(payP)}</td>
+          <td class="bl">${num(offIndP)}</td><td>${num(offConj*0.5)}</td><td class="col-p">${num(offsP)}</td>
+          <td class="bl col-p">${num(totP)}</td><td>${num(recP)}</td><td class="${cls(recP-totP)}"><b>${num(recP-totP)}</b></td>
+        </tr>
+        <tr class="tot">
+          <td class="l">CASAL (Soma Total)</td>
+          <td class="bl">${num(sp.Cristian+sp.Pedro)}</td><td>${num(sp.Conjunto)}</td><td>${num(payC+payP)}</td>
+          <td class="bl">${num(offIndC+offIndP)}</td><td>${num(offConj)}</td><td>${num(offsC+offsP)}</td>
+          <td class="bl">${num(totC+totP)}</td><td>${num(recC+recP)}</td><td class="${cls((recC+recP)-(totC+totP))}">${num((recC+recP)-(totC+totP))}</td>
+        </tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="row">
+    ${buildPersonPanel('Cristian','🔵 1. Itens Individuais — Cristian (100%)','sub-c',false)}
+    ${buildPersonPanel('Pedro','🟠 2. Itens Individuais — Pedro (100% · c/ QuintoAndar)','sub-p',false)}
+    ${buildPersonPanel('Conjunto','🟢 3. Itens Conjuntos — Divididos 50/50 (Aluguel, Carro, etc.)','sub-j',true)}
+  </div>
+
+  <div class="row">
+    <div class="panel" style="flex:1;min-width:320px"><h2>Gastos do cartão por categoria (${vLab})</h2><div class="tw"><table>${Object.entries(cat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${num(v)}</td></tr>`).join('')}</table></div></div>
+    <div class="panel" style="flex:1;min-width:320px"><h2>Checklist de pagamentos Fora do Cartão (${lab(ym)}) <span class="note">· ${nPaid}/${offDesp.length} pagas</span></h2><div class="tw"><table><tr><th class="l">Pago</th><th class="l">Item</th><th>Venc.</th><th>Valor</th></tr>${off.map(o=>{const ok=isPaid(ym,o.id);return `<tr style="${ok?'opacity:.65':''}"><td class="l">${o.kind==='receita'?'<span class="pos">✓</span>':`<input type="checkbox" data-paid="${o.id}" data-ym="${ym}" ${ok?'checked':''}>`}</td><td class="l">${esc(o.nome)} <small>(${o.quem}${o.quem==='Conjunto'?' · 50/50':''})</small></td><td>${o.venc?'dia '+o.venc:'–'}</td><td class="${o.kind==='receita'?'pos':'neg'}">${o.kind==='receita'?'+':'-'}${num(offV(o,ym)*weight(o.quem))}</td></tr>`}).join('')}</table></div></div>
+  </div>`;
 }
 
 function flow(withPlans=S.settings.includePlans){
@@ -407,11 +727,33 @@ function rFluxo(){
   <div class="note">Valem para todos os meses. FGTS = saldo atual + depósito mensal, com rendimento mensal.</div></div>
   <div class="row"><div class="panel"><h2>Entradas por pessoa x saídas</h2><canvas id="cf1"></canvas></div>
   <div class="panel"><h2>Saldo em conta e FGTS acumulado</h2><canvas id="cf2"></canvas></div></div>
-  <div class="panel"><h2>Fluxo mensal da família (${lab(f0.ym)} a ${lab(fl.ym)}) — Individuais vs Conjuntas (50/50)</h2><div class="tw"><table><tr><th>Mês</th><th>Renda Cristian</th><th>Renda Pedro</th><th>Renda total</th><th>Indiv. Cristian</th><th>Indiv. Pedro</th><th>Conjuntas (Total)</th><th>50% Conj. (cada)</th><th>Total Cristian</th><th>Total Pedro</th><th>Sobra Cristian</th><th>Sobra Pedro</th><th>Sobra Casal</th><th>Saldo em conta</th><th>FGTS Cristian</th><th>FGTS Pedro</th><th>Patrimônio</th></tr>
-  ${R.map(r=>`<tr><td><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a></td><td>${num(r.inc.Cristian)}</td><td>${num(r.inc.Pedro)}</td><td><b>${num(r.renda)}</b></td><td>${num(r.ind.Cristian)}</td><td>${num(r.ind.Pedro)}</td><td>${num(r.conj)}</td><td>${num(r.conjMeio)}</td><td><b>${num(r.totC)}</b></td><td><b>${num(r.totP)}</b></td><td class="${cls(r.sobraC)}">${num(r.sobraC)}</td><td class="${cls(r.sobraP)}">${num(r.sobraP)}</td><td class="${cls(r.sobra)}"><b>${num(r.sobra)}</b></td><td class="${cls(r.saldo)}">${num(r.saldo)}</td><td>${num(r.fg.Cristian)}</td><td>${num(r.fg.Pedro)}</td><td><b>${num(r.patr)}</b></td></tr>`).join('')}</table></div>
+  <div class="panel"><h2>Fluxo mensal da família (${lab(f0.ym)} a ${lab(fl.ym)}) — Individuais vs Conjuntas (50/50)</h2>
+  <div class="tw"><table>
+    <thead>
+      <tr>
+        <th class="grp-hdr">Mês</th>
+        <th colspan="3" class="grp-hdr bl">💰 Receitas (Entradas)</th>
+        <th colspan="4" class="grp-hdr grp-j bl">Separação de Despesas (Individuais 100% vs Conjuntas 50/50)</th>
+        <th colspan="2" class="grp-hdr grp-tot bl">📌 Total Pago por Pessoa</th>
+        <th colspan="3" class="grp-hdr bl">📊 Sobra / Falta no Mês</th>
+        <th colspan="4" class="grp-hdr bl">🏦 Acumulado (Conta + FGTS)</th>
+      </tr>
+      <tr>
+        <th class="l">Mês</th>
+        <th class="bl">Cristian</th><th>Pedro</th><th class="col-sum">= Renda Total</th>
+        <th class="bl col-c">Indiv. Cristian</th><th class="col-p">Indiv. Pedro</th><th class="col-j">Conjuntas (100%)</th><th class="col-j">50% Conj. (cada)</th>
+        <th class="bl col-c">= Total Cristian</th><th class="col-p">= Total Pedro</th>
+        <th class="bl">Sobra Cristian</th><th>Sobra Pedro</th><th class="col-sum">= Sobra Casal</th>
+        <th class="bl">Saldo em conta</th><th>FGTS Cristian</th><th>FGTS Pedro</th><th class="col-sum">Patrimônio</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${R.map(r=>`<tr><td class="l"><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a></td><td class="bl">${num(r.inc.Cristian)}</td><td>${num(r.inc.Pedro)}</td><td class="col-sum">${num(r.renda)}</td><td class="bl col-c">${num(r.ind.Cristian)}</td><td class="col-p">${num(r.ind.Pedro)}</td><td class="col-j">${num(r.conj)}</td><td class="col-j">${num(r.conjMeio)}</td><td class="bl col-c">${num(r.totC)}</td><td class="col-p">${num(r.totP)}</td><td class="bl ${cls(r.sobraC)}">${num(r.sobraC)}</td><td class="${cls(r.sobraP)}">${num(r.sobraP)}</td><td class="col-sum ${cls(r.sobra)}">${num(r.sobra)}</td><td class="bl ${cls(r.saldo)}">${num(r.saldo)}</td><td>${num(r.fg.Cristian)}</td><td>${num(r.fg.Pedro)}</td><td class="col-sum">${num(r.patr)}</td></tr>`).join('')}
+    </tbody>
+  </table></div>
   <div class="note">Despesas individuais ficam 100% na conta de quem gastou (incluindo QuintoAndar no Pedro). Despesas Conjuntas (Aluguel, Carro e compras conjuntas) são sempre divididas 50/50 (meio a meio).</div></div>
-  <div class="panel"><h2>Despesas fora do cartão por categoria</h2><div class="tw"><table><tr><th>Mês</th>${cats.map(c=>`<th>${esc(c)}</th>`).join('')}<th>Total</th></tr>
-  ${R.map(r=>`<tr><td>${lab(r.ym)}</td>${cats.map(c=>`<td>${r.offc[c]?num(r.offc[c]):''}</td>`).join('')}<td><b>${num(r.fora)}</b></td></tr>`).join('')}</table></div></div>`;
+  <div class="panel"><h2>Despesas fora do cartão por categoria</h2><div class="tw"><table><tr><th class="l">Mês</th>${cats.map(c=>`<th>${esc(c)}</th>`).join('')}<th>Total</th></tr>
+  ${R.map(r=>`<tr><td class="l">${lab(r.ym)}</td>${cats.map(c=>`<td>${r.offc[c]?num(r.offc[c]):''}</td>`).join('')}<td><b>${num(r.fora)}</b></td></tr>`).join('')}</table></div></div>`;
 }
 function drawFluxo(){
   const R=flow(),L=R.map(r=>lab(r.ym)),tip={plugins:{tooltip:{callbacks:{label:c=>c.dataset.label+': '+brl(c.parsed.y)}}}};
@@ -766,6 +1108,7 @@ function bind(m){
     dz.addEventListener('drop',ev=>{ev.preventDefault();dz.classList.remove('drag');if(ev.dataTransfer?.files?.[0])parseFatura(ev.dataTransfer.files[0])});
   }
   const rdet=m.querySelector('#rdet');if(rdet)rdet.addEventListener('toggle',()=>{rulesOpen=rdet.open});
+  const cpm=m.querySelector('#chk-past-m');if(cpm)cpm.addEventListener('change',()=>{showPastMatrix=cpm.checked;render()});
   m.querySelectorAll('[data-mes]').forEach(el=>el.addEventListener('click',ev=>{ev.preventDefault();MS=el.dataset.mes;tab='mes';render()}));
   const ms=m.querySelector('#msel');if(ms)ms.addEventListener('change',()=>{MS=ms.value;render()});
   const cr=m.querySelector('#cenreset');if(cr)cr.addEventListener('click',()=>{S.extras.cen={moradiaPct:0,rendaPct:0,varPct:0,extra:0,extraDe:'',quitarId:'',quitarMes:''};save();render()});
@@ -773,6 +1116,9 @@ function bind(m){
 }
 function act(el){
   const a=el.dataset.act,id=+(el.closest('tr')?.dataset.id||0),vid=+(el.closest('tr')?.dataset.vid||0),snapId=+(el.closest('tr')?.dataset.snap||0);
+  if(a==='gmode'){geralMode=el.dataset.mode||'linhas';render();return}
+  if(a==='tog-varq'){const q=el.dataset.q;openVarQ.has(q)?openVarQ.delete(q):openVarQ.add(q);render();return}
+  if(a==='tog-mesdet'){const ym=el.dataset.ym;openMesDet.has(ym)?openMesDet.delete(ym):openMesDet.add(ym);render();return}
   if(a==='del-tx'){S.tx=S.tx.filter(x=>x.id!==id);SEL.delete(id)}
   else if(a==='del-off'){S.off=S.off.filter(x=>x.id!==id)}
   else if(a==='del-rule'){delete S.rules[el.closest('tr').dataset.rule]}
@@ -806,12 +1152,29 @@ function act(el){
 }
 function download(name,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click()}
 function exportXlsx(){
-  const R=compute(),wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Mês','Renda','Indiv. Cristian','Indiv. Pedro','Conjuntas (100%)','50% Conjunto (cada)','Parcelas','Fixas','Assinaturas','Comprometido no cartão','Estimativas opcionais','Fora do cartão','Total despesas','Sobra','Saldo'],
-   ...R.map(r=>[r.ym,r.renda,r.byQ.Cristian,r.byQ.Pedro,r.byQ.Conjunto,r.byQ.Conjunto/2,r.g.parcelas,r.g.fixas,r.g.assinaturas,r.comprometido,r.g.variaveis,r.fora,r.total,r.sobra,r.saldo].map(v=>typeof v==='number'?+v.toFixed(2):v))]),'Projeção');
-  const Ms=months();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Descrição','Tipo','Quem',...Ms],
-   ...S.tx.filter(x=>x.ativo&&!['variavel','ignorar'].includes(x.tipo)).map(x=>[x.desc,TIPOS[x.tipo],x.quem,...Ms.map((_,k)=>+(txAmount(x,k)*weight(x.quem)).toFixed(2))])]),'Cartão comprometido');
+  const R=series().filter(r=>r.ym>=S.settings.base),M=buildItemMatrix(R),wb=XLSX.utils.book_new();
+  const rd=v=>typeof v==='number'?+v.toFixed(2):v;
+  const rows=[['Item / Linha','Grupo','Origem',...M.Ms.map(lab),'Total Período']];
+  rows.push(['--- 1. RECEITAS ---','','',...M.Ms.map(()=>''),'']);
+  M.incItems.forEach(it=>rows.push([it.nome,it.quem,it.orig,...it.vals.map(rd),rd(it.tot)]));
+  rows.push(['= SOMA RECEITAS (A)','','Subtotal',...R.map(r=>rd(r.renda)),rd(R.reduce((a,r)=>a+r.renda,0))]);
+  [['Cristian','2. INDIVIDUAIS CRISTIAN (100%)','B1'],['Pedro','3. INDIVIDUAIS PEDRO (100%)','B2'],['Conjunto','4. CONJUNTAS (DIVIDIDAS 50/50)','C']].forEach(([q,tit,cd])=>{
+    rows.push([`--- ${tit} ---`,'','',...M.Ms.map(()=>''),'']);
+    M.groups[q].forEach(it=>rows.push([it.nome,q,it.orig,...it.vals.map(rd),rd(it.tot)]));
+    const vt=M.varTotByQ[q],vs=vt.reduce((a,b)=>a+b,0);
+    if(vs>0)rows.push([`Compras variáveis da fatura (${M.varSub[q].length} itens)`,q,'Cartão · Variável',...vt.map(rd),rd(vs)]);
+    rows.push([`= SOMA ${tit} (${cd})`,q,'Subtotal',...R.map(r=>rd(r.byQ[q])),rd(R.reduce((a,r)=>a+r.byQ[q],0))]);
+  });
+  rows.push(['↳ 50% CONJUNTO PARA CADA UM (C ÷ 2)','50/50','Metade p/ cada',...R.map(r=>rd(r.byQ.Conjunto*0.5)),rd(R.reduce((a,r)=>a+r.byQ.Conjunto*0.5,0))]);
+  rows.push(['--- 5. FECHAMENTO MENSAL ---','','',...M.Ms.map(()=>''),'']);
+  rows.push(['= TOTAL CRISTIAN PAGA (B1 + 50% Conj.)','Cristian','Fechamento',...R.map(r=>rd(r.byQ.Cristian+r.byQ.Conjunto*0.5)),rd(R.reduce((a,r)=>a+r.byQ.Cristian+r.byQ.Conjunto*0.5,0))]);
+  rows.push(['= TOTAL PEDRO PAGA (B2 + 50% Conj.)','Pedro','Fechamento',...R.map(r=>rd(r.byQ.Pedro+r.byQ.Conjunto*0.5)),rd(R.reduce((a,r)=>a+r.byQ.Pedro+r.byQ.Conjunto*0.5,0))]);
+  rows.push(['= TOTAL GERAL DE DESPESAS','Casal','Fechamento',...R.map(r=>rd(r.total)),rd(R.reduce((a,r)=>a+r.total,0))]);
+  rows.push(['= SOBRA / FALTA DO MÊS','Casal','Fechamento',...R.map(r=>rd(r.sobra)),rd(R.reduce((a,r)=>a+r.sobra,0))]);
+  rows.push(['= SALDO ACUMULADO EM CONTA','Casal','Fechamento',...R.map(r=>rd(r.saldo||0)),rd(R[R.length-1]?.saldo||0)]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Linhas que se somam');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Mês','Renda','Cartão Cristian','Fora Cristian','= Indiv. Cristian','Cartão Pedro','Fora Pedro','= Indiv. Pedro','Cartão Conjunto','Fora Conjunto','= Conjuntas (100%)','50% Conjunto (cada)','= Cristian paga','= Pedro paga','= Total Despesas','Sobra/Falta','Saldo Acumulado'],
+   ...R.map(r=>[r.ym,r.renda,r.cardByQ.Cristian,r.offByQ.Cristian,r.byQ.Cristian,r.cardByQ.Pedro,r.offByQ.Pedro,r.byQ.Pedro,r.cardByQ.Conjunto,r.offByQ.Conjunto,r.byQ.Conjunto,r.byQ.Conjunto*0.5,r.byQ.Cristian+r.byQ.Conjunto*0.5,r.byQ.Pedro+r.byQ.Conjunto*0.5,r.total,r.sobra,r.saldo].map(rd))]),'Resumo por Mês');
   XLSX.writeFile(wb,'projecao-financeira.xlsx');
 }
 
@@ -838,11 +1201,6 @@ function remember(o,changedField){
   const k=key(o.desc);if(!k)return;
   S.rules[k]={tipo:o.tipo,quem:o.quem,cat:o.cat,fim:o.fim||null,exemplo:o.desc};
   S.tx.forEach(y=>{if(y.rev&&y!==o&&key(y.desc)===k)applyRule(y,S.rules[k],changedField==='quem')});
-}
-function split(fat){
-  const s={Cristian:0,Pedro:0,Conjunto:0};
-  S.tx.forEach(x=>{if(x.fatura===fat&&live(x))s[x.quem]=(s[x.quem]||0)+x.valor});
-  return {...s,total:s.Cristian+s.Pedro+s.Conjunto,payC:s.Cristian+s.Conjunto*0.5,payP:s.Pedro+s.Conjunto*0.5};
 }
 
 const txSig=x=>`${x.data}|${norm(x.desc)}|${(+x.valor).toFixed(2)}|${x.cur||0}/${x.tot||0}`;
