@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Planejamento financeiro – Cristian & Pedro</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=4">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
 <meta name="theme-color" content="#0e6b7c">
@@ -21,34 +21,42 @@
       <option value="conjunto">Só Conjunto</option>
     </select>
   </div>
-  <div id="meta" class="note" style="color:#cfe0f1"></div>
-  <div id="sync" class="note" style="color:#cfe0f1"></div>
-  <button id="theme-btn" class="b g" title="Alternar tema claro/escuro" style="margin-left:auto;padding:5px 10px">🌙</button>
+  <div id="sync" class="note"></div>
+  <button id="theme-btn" class="b g" title="Alternar tema claro/escuro (Alt+T)" style="margin-left:auto;padding:5px 11px;font-size:12px">🌙 Escuro</button>
+  <div id="meta" class="note"></div>
   <nav id="tabs">
-    <button data-tab="geral" class="on">Visão geral</button>
-    <button data-tab="mes">Visão mensal</button>
-    <button data-tab="fluxo">Fluxo de caixa</button>
-    <button data-tab="cartao">Cartão</button>
-    <button data-tab="lanc">Lançamentos</button>
-    <button data-tab="imp">Importar / Revisar</button>
-    <button data-tab="hist">Histórico</button>
-    <button data-tab="fora">Fora do cartão</button>
-    <button data-tab="prem">Premissas</button>
-    <span class="sep"></span>
-    <button data-tab="metas">Metas</button>
-    <button data-tab="planos">Planos</button>
-    <button data-tab="cen">Cenários</button>
+    <div class="tgrp">
+      <small>Panorama</small>
+      <button data-tab="geral" class="on">Visão geral</button>
+      <button data-tab="mes">Visão mensal</button>
+      <button data-tab="fluxo">Fluxo de caixa</button>
+    </div>
+    <div class="tgrp">
+      <small>Cartão & Contas</small>
+      <button data-tab="cartao">Cartão</button>
+      <button data-tab="lanc">Lançamentos</button>
+      <button data-tab="imp">Importar / Revisar</button>
+      <button data-tab="fora">Fora do cartão</button>
+      <button data-tab="hist">Histórico</button>
+    </div>
+    <div class="tgrp">
+      <small>Futuro & Config</small>
+      <button data-tab="metas">Metas</button>
+      <button data-tab="planos">Planos</button>
+      <button data-tab="cen">Cenários</button>
+      <button data-tab="prem">Premissas</button>
+    </div>
   </nav>
 </header>
 <div id="mob-bar" class="mob-bar"></div>
 <main id="main"></main>
-<button id="fab-add" class="fab" title="Novo lançamento rápido">+ Lançamento</button>
+<button id="fab-add" class="fab" title="Novo lançamento rápido (Alt+N)">+ Lançamento</button>
 <div id="qmodal" class="qmodal" hidden></div>
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/chart.umd.js"></script>
 <script src="config.js"></script>
 <script src="lib/supabase.js"></script>
 <script src="data.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

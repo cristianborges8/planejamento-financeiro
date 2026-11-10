@@ -18,7 +18,7 @@ function splitCasa(d){const o=d.off||[],i=o.findIndex(x=>x.nome==='Aluguel+taxas
  const p=(nome,valor)=>({...b,id:id++,nome:nome+' (casa nova)',valor});
  o.splice(i,1,p('Aluguel',2158.18),p('Taxa de serviço',55.90),p('IPTU',161.77),p('Seguro incêndio',28.73))}
 function mig(d){splitCasa(d);d.rules=d.rules||{};d.meta=d.meta||{};d.paid=d.paid||{};{const e=d.extras=d.extras||{};e.metas=e.metas||{};e.reserva=e.reserva||{meta:0,saldo:0,aporte:0,rend:0.8};e.inv=e.inv||[];e.saques=e.saques||[];e.compras=e.compras||[];e.cen=e.cen||{moradiaPct:0,rendaPct:0,varPct:0,extra:0,extraDe:'',quitarId:'',quitarMes:''}}const st=d.settings;st.fgts=st.fgts||{Cristian:{ini:0,dep:0},Pedro:{ini:0,dep:0}};if(st.fgtsRate==null)st.fgtsRate=0.25;d.off.forEach(o=>{if(!o.freq)o.freq='mensal'});d.tx.forEach(x=>{if(!x.fatura)x.fatura=d.settings.base});if(d.rulesV!==3){d.rules={};d.rulesV=3;learn(d,d.tx)}return d}
-let S=load(),view='casal',tab='geral',MS=null,charts=[],IMP=null,rulesOpen=false,currentUser=null;
+let S=load(),view='casal',tab='geral',MS=null,charts=[],IMP=null,rulesOpen=false,currentUser=null,SEL=new Set();
 const F={quem:'',tipo:'',txt:'',fat:null,rev:false,hf:null,rtxt:''};
 const cur=x=>x.fatura===S.settings.base;
 const live=x=>x.ativo&&!x.rev&&x.tipo!=='ignorar';
@@ -110,14 +110,21 @@ function compute(n){
   });
 }
 
+const THEME_VARS={
+  light:{'--bg':'#f4f6f8','--surface':'#ffffff','--line':'#e5e8ec','--text':'#16181d','--muted':'#707782','--accent':'#0e6b7c','--accent-soft':'#e3f1f3','--petrol-dark':'#0a4a57','--neg':'#d6336c','--pos':'#2b8a3e','--row-hover':'#f8fafb','--hdr-bg':'rgba(255,255,255,.94)'},
+  dark:{'--bg':'#0f1216','--surface':'#181c22','--line':'#282e38','--text':'#e9edf2','--muted':'#9aa3b0','--accent':'#23a4bc','--accent-soft':'#16343d','--petrol-dark':'#66d1e6','--neg':'#ff6b96','--pos':'#51cf66','--row-hover':'#1f252e','--hdr-bg':'rgba(24,28,34,.94)'}
+};
 function applyTheme(t){
-  document.documentElement.dataset.theme=t;
-  localStorage.setItem('pf-theme',t);
-  const btn=document.getElementById('theme-btn');if(btn)btn.textContent=t==='dark'?'☀️':'🌙';
+  const mode=t==='dark'?'dark':'light';
+  document.documentElement.dataset.theme=mode;
+  if(document.body)document.body.dataset.theme=mode;
+  Object.entries(THEME_VARS[mode]).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
+  localStorage.setItem('pf-theme',mode);
+  const btn=document.getElementById('theme-btn');if(btn)btn.textContent=mode==='dark'?'☀️ Claro':'🌙 Escuro';
   if(window.Chart){
     Chart.defaults.font.family='Inter,-apple-system,Segoe UI,sans-serif';
-    Chart.defaults.color=t==='dark'?'#9aa3b0':'#80868f';
-    Chart.defaults.borderColor=t==='dark'?'#282e38':'#ececef';
+    Chart.defaults.color=mode==='dark'?'#9aa3b0':'#707782';
+    Chart.defaults.borderColor=mode==='dark'?'#282e38':'#e5e8ec';
     Chart.defaults.plugins.legend.labels.usePointStyle=true;
     Chart.defaults.elements.bar.borderRadius=3;
   }
@@ -173,11 +180,18 @@ function render(){
   restoreFocus(m,fc);
 }
 
-const END='2028-12';
+const nextYearDec=()=>`${+S.settings.base.slice(0,4)+1}-12`;
+const endMonth=()=>{const e=S.settings.flowEnd;return e&&e>S.settings.base?e:nextYearDec()};
 const firstFat=()=>S.tx.map(x=>x.fatura).sort()[0]||S.settings.base;
-const allMonths=()=>Array.from({length:diffM(firstFat(),END)+1},(_,i)=>addM(firstFat(),i));
+const allMonths=()=>{const mx=endMonth()>'2028-12'?endMonth():'2028-12';return Array.from({length:diffM(firstFat(),mx)+1},(_,i)=>addM(firstFat(),i))};
+const horizonCtrl=()=>{
+  const def=nextYearDec(),curEnd=endMonth(),by=+S.settings.base.slice(0,4);
+  const optsList=[[ '',`${lab(def)} (dez do ano seguinte – padrão)`],[addM(S.settings.base,12),`${lab(addM(S.settings.base,12))} (+12 meses)`],[`${by}-12`,`${lab(by+'-12')} (fim deste ano)`],[`${by+2}-12`,`${lab((by+2)+'-12')} (dez/${String(by+2).slice(2)})`],[`${by+3}-12`,`${lab((by+3)+'-12')} (dez/${String(by+3).slice(2)})`]].filter(([v])=>!v||v>S.settings.base);
+  const raw=S.settings.flowEnd||'';
+  return `<label class="note" style="display:inline-flex;align-items:center;gap:6px">Projetar até: <select data-s="flowEnd">${optsList.map(([v,l])=>`<option value="${v}" ${raw===v?'selected':''}>${l}</option>`).join('')}</select> <span class="note">(${diffM(S.settings.base,curEnd)} meses à frente)</span></label>`;
+};
 function series(){
-  const base=S.settings.base,proj=compute(Math.max(1,diffM(base,END)));
+  const base=S.settings.base,proj=compute(Math.max(1,diffM(base,endMonth())));
   const hist=allMonths().filter(m=>m<base).map(ym=>{
     const g={parcelas:0,fixas:0,assinaturas:0,variaveis:0};
     S.tx.forEach(x=>{if(x.fatura===ym&&live(x))g[GROUP[x.tipo]]+=x.valor*weight(x.quem)});
@@ -191,19 +205,23 @@ function rGeral(){
   const R=series(),yrs=[...new Set(R.map(r=>r.ym.slice(0,4)))];
   const sum=(rows,f)=>rows.reduce((a,r)=>a+r[f],0);
   const nrev=S.tx.filter(x=>x.rev).length,base=S.settings.base;
-  const C=compute(),k0=C[0],k1=C[1],parcRest=C.slice(1).reduce((a,r)=>a+r.g.parcelas,0),fim=R[R.length-1],avg=C.slice(1).reduce((a,r)=>a+r.sobra,0)/(C.length-1),sp=split(base);
+  const C=compute(Math.max(1,diffM(base,endMonth()))),k0=C[0],k1=C[1],parcRest=C.slice(1).reduce((a,r)=>a+r.g.parcelas,0),fim=R[R.length-1],avg=C.slice(1).reduce((a,r)=>a+r.sobra,0)/(C.length-1),sp=split(base);
+  const pctRenda=k0.renda?Math.round(k0.cartao/k0.renda*100):0,diffNext=k1.cartao-k0.cartao;
   return `${nrev?`<div class="warn">${nrev} lançamentos aguardando validação: ficam fora dos cálculos até você confirmar (aba Importar / Revisar).</div>`:''}
-  ${S.settings.includePlans?`<div class="note" style="color:var(--accent);font-weight:500;margin-bottom:10px">📋 Projeções incluindo compras planejadas, aportes e saques da aba Planos.</div>`:''}
+  <div class="bar" style="justify-content:space-between;margin-bottom:10px">
+    ${horizonCtrl()}
+    ${S.settings.includePlans?`<span class="note" style="color:var(--accent);font-weight:600">📋 Incluindo itens da aba Planos</span>`:''}
+  </div>
   <div class="cards">
-    <div class="card"><small>Fatura atual (${lab(k0.ym)})</small><b>${brl(k0.cartao)}</b></div>
-    <div class="card"><small>Próxima fatura comprometida</small><b>${brl(k1.comprometido)}</b><small>com variáveis: ${brl(k1.cartao)}</small></div>
-    <div class="card"><small>Parcelas a pagar (${C.length-1} meses)</small><b>${brl(parcRest)}</b></div>
-    <div class="card"><small>Sobra média mensal</small><b class="${cls(avg)}">${brl(avg)}</b></div>
-    <div class="card"><small>Saldo em ${lab(fim.ym)}</small><b class="${cls(fim.saldo)}">${brl(fim.saldo)}</b></div>
-    <div class="card"><small>Cristian / Pedro pagam (fatura atual)</small><b style="font-size:16px">${brl(sp.payC)}</b><b style="font-size:16px;margin-top:0">${brl(sp.payP)}</b></div>
+    <div class="card"><small>Fatura atual (${lab(k0.ym)})</small><b>${brl(k0.cartao)}</b><small class="sub">${pctRenda}% da renda · comprometido ${brl(k0.comprometido)}</small></div>
+    <div class="card"><small>Próxima fatura (${lab(k1.ym)})</small><b>${brl(k1.comprometido)}</b><small class="sub">c/ variáveis: ${brl(k1.cartao)} (${diffNext>=0?'+':''}${brl(diffNext)})</small></div>
+    <div class="card c-warn"><small>Parcelas futuras (${C.length-1} meses)</small><b>${brl(parcRest)}</b><small class="sub">até ${lab(fim.ym)}</small></div>
+    <div class="card ${avg>=0?'c-pos':'c-neg'}"><small>Sobra média mensal</small><b class="${cls(avg)}">${brl(avg)}</b><small class="sub">${k0.renda?Math.round(avg/k0.renda*100):0}% da renda poupada/mês</small></div>
+    <div class="card ${fim.saldo>=0?'c-pos':'c-neg'}"><small>Saldo projetado em ${lab(fim.ym)}</small><b class="${cls(fim.saldo)}">${brl(fim.saldo)}</b><small class="sub">acumulado em conta</small></div>
+    <div class="card"><small>Divisão da fatura (${lab(base)})</small><b style="font-size:16px">Cristian: ${brl(sp.payC)}</b><small class="sub"><b>Pedro: ${brl(sp.payP)}</b> (Conjunto ${S.settings.pctCristian}%/${100-S.settings.pctCristian}%)</small></div>
   </div>
   <div class="panel"><h2>Série temporal completa (${lab(R[0].ym)} a ${lab(R[R.length-1].ym)})</h2>
-  <div class="note">Meses até ${lab(addM(base,-1))}: faturas reais já importadas. A partir de ${lab(base)}: projeção (parcelas, fixas, assinaturas, variáveis estimadas e fora do cartão). Clique em uma barra para abrir o mês.</div>
+  <div class="note">Meses até ${lab(addM(base,-1))}: faturas reais já importadas. A partir de ${lab(base)}: projeção até ${lab(fim.ym)}. Clique em uma barra para abrir o mês.</div>
   <canvas id="cg" height="110"></canvas></div>
   <div class="panel"><h2>Resumo por ano</h2><div class="tw"><table><tr><th>Ano</th><th>Renda</th><th>Cartão</th><th>Fora do cartão</th><th>Total despesas</th><th>Sobra/falta</th></tr>
   ${yrs.map(y=>{const rs=R.filter(r=>r.ym.startsWith(y));return `<tr><td>${y}</td><td>${num(sum(rs,'renda'))}</td><td>${num(sum(rs,'cartao'))}</td><td>${num(sum(rs,'fora'))}</td><td><b>${num(sum(rs,'total'))}</b></td><td class="${cls(sum(rs,'sobra'))}">${num(sum(rs,'sobra'))}</td></tr>`}).join('')}</table></div></div>
@@ -248,19 +266,19 @@ function rMes(){
   const pend=S.tx.filter(x=>x.rev&&x.fatura===ym).length,i=Ms.indexOf(ym);
   const status=ym<base?'fatura real':ym===base?'fatura atual (importada)':'projeção';
   const vLab={casal:'casal',cristian:'Cristian',pedro:'Pedro',conjunto:'Conjunto'}[view];
-  const repasseP=payP+offs('P'),fatOk=isPaid(ym,'fatura'),acOk=isPaid(ym,'acerto');
+  const repasseP=payP+offs('P'),fatOk=isPaid(ym,'fatura'),acOk=isPaid(ym,'acerto'),sobraM=renda-cartao-fora;
   return `<div class="panel"><div class="bar"><button class="b g" data-mes="${Ms[Math.max(0,i-1)]}">◀</button>
   <select id="msel">${Ms.map(m=>`<option value="${m}" ${m===ym?'selected':''}>${lab(m)}</option>`).join('')}</select>
   <button class="b g" data-mes="${Ms[Math.min(Ms.length-1,i+1)]}">▶</button><b style="margin-left:10px">${lab(ym)} – ${status}</b></div>
   <div class="bar">${pctBox(ym)}</div>
   ${pend?`<div class="warn">${pend} lançamentos desta fatura ainda não validados e fora dos números abaixo.</div>`:''}
   <div class="cards">
-    <div class="card"><small>Renda (${vLab})</small><b>${brl(renda)}</b></div>
+    <div class="card"><small>Renda (${vLab})</small><b>${brl(renda)}</b><small class="sub">comprometido: ${renda?Math.round((cartao+fora)/renda*100):0}%</small></div>
     <div class="card"><small>Cartão (${vLab})</small><b>${brl(cartao)}</b><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-top:4px"><input type="checkbox" data-paid="fatura" data-ym="${ym}" ${fatOk?'checked':''}><span class="${fatOk?'pos':''}">${fatOk?'Fatura paga ✓':'Fatura em aberto'}</span></label></div>
-    <div class="card"><small>Fora do cartão (${vLab})</small><b>${brl(fora)}</b><small>${offDesp.length?`${nPaid}/${offDesp.length} contas pagas`:'Sem contas'}</small></div>
-    <div class="card"><small>Sobra/falta (${vLab})</small><b class="${cls(renda-cartao-fora)}">${brl(renda-cartao-fora)}</b></div>
-    <div class="card"><small>Parte do Cristian (total)</small><b>${brl(payC+offs('C'))}</b><small>Cartão ${brl(payC)} + Fora ${brl(offs('C'))}</small></div>
-    <div class="card" style="border-top:3px solid #d9480f"><small>Pedro repassa p/ Cristian</small><b>${brl(repasseP)}</b><small>Cartão ${brl(payP)} + Fora ${brl(offs('P'))}</small><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-top:4px"><input type="checkbox" data-paid="acerto" data-ym="${ym}" ${acOk?'checked':''}><span class="${acOk?'pos':''}">${acOk?'Repasse recebido ✓':'Repasse pendente'}</span></label></div>
+    <div class="card"><small>Fora do cartão (${vLab})</small><b>${brl(fora)}</b><small class="sub">${offDesp.length?`${nPaid}/${offDesp.length} contas pagas`:'Sem contas'}</small></div>
+    <div class="card ${sobraM>=0?'c-pos':'c-neg'}"><small>Sobra/falta (${vLab})</small><b class="${cls(sobraM)}">${brl(sobraM)}</b><small class="sub">${renda?Math.round(sobraM/renda*100):0}% da renda</small></div>
+    <div class="card"><small>Parte do Cristian (total)</small><b>${brl(payC+offs('C'))}</b><small class="sub">Cartão ${brl(payC)} + Fora ${brl(offs('C'))}</small></div>
+    <div class="card" style="border-top:3px solid #d9480f"><small>Pedro repassa p/ Cristian</small><b>${brl(repasseP)}</b><small class="sub">Cartão ${brl(payP)} + Fora ${brl(offs('P'))}</small><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-top:4px"><input type="checkbox" data-paid="acerto" data-ym="${ym}" ${acOk?'checked':''}><span class="${acOk?'pos':''}">${acOk?'Repasse recebido ✓':'Repasse pendente'}</span></label></div>
   </div></div>
   <div class="row"><div class="panel" style="flex:2;min-width:420px"><h2>Cartão no mês (${vLab})</h2><div class="tw"><table><tr><th class="l">Descrição</th><th class="l">Quem</th><th class="l">Tipo</th><th class="l">Categoria</th><th>Parcela</th><th>Valor</th></tr>
   ${items.map(x=>`<tr><td class="l">${esc(x.desc.slice(0,44))}</td><td class="l"><span class="tag t-${x.quem}">${x.quem}</span></td><td class="l">${TIPOS[x.tipo]}</td><td class="l">${esc(x.cat)}</td><td>${x.sub}</td><td>${num(x.valor)}</td></tr>`).join('')||'<tr><td class="l" colspan="6">Sem lançamentos validados.</td></tr>'}
@@ -270,7 +288,7 @@ function rMes(){
 }
 
 function flow(withPlans=S.settings.includePlans){
-  const st=S.settings,base=st.base,p=st.pctCristian/100,n=Math.max(1,diffM(base,END)),r=(st.fgtsRate||0)/100,E=S.extras,rr=(E.reserva?.rend||0)/100;
+  const st=S.settings,base=st.base,p=st.pctCristian/100,n=Math.max(1,diffM(base,endMonth())),r=(st.fgtsRate||0)/100,E=S.extras,rr=(E.reserva?.rend||0)/100;
   let saldo=(st.saldoIni.Cristian||0)+(st.saldoIni.Pedro||0),res=E.reserva?.saldo||0;
   const inv=(E.inv||[]).map(i=>i.saldo||0),fg={Cristian:st.fgts.Cristian.ini,Pedro:st.fgts.Pedro.ini};
   return months(n).map((ym,k)=>{
@@ -298,14 +316,19 @@ function flow(withPlans=S.settings.includePlans){
 }
 function rFluxo(){
   const R=flow(),cats=[...new Set(R.flatMap(r=>Object.keys(r.offc)))].sort(),f0=R[0],fl=R[R.length-1];
-  return `${S.settings.includePlans?`<div class="note" style="color:var(--accent);font-weight:500;margin-bottom:10px">📋 Fluxo de caixa e patrimônio refletindo os itens da aba Planos.</div>`:''}
+  const saldoIni=(S.settings.saldoIni.Cristian||0)+(S.settings.saldoIni.Pedro||0),fgIni=(S.settings.fgts.Cristian.ini||0)+(S.settings.fgts.Pedro.ini||0);
+  const dSaldo=fl.saldo-saldoIni,dFg=fl.fgT-fgIni;
+  return `<div class="bar" style="justify-content:space-between;margin-bottom:10px">
+    ${horizonCtrl()}
+    ${S.settings.includePlans?`<span class="note" style="color:var(--accent);font-weight:600">📋 Refletindo itens da aba Planos</span>`:''}
+  </div>
   <div class="cards">
-    <div class="card"><small>Renda Cristian (${lab(f0.ym)})</small><b>${brl(f0.inc.Cristian)}</b></div>
-    <div class="card"><small>Renda Pedro (${lab(f0.ym)})</small><b>${brl(f0.inc.Pedro)}</b></div>
-    <div class="card"><small>Saldo em conta (${lab(fl.ym)})</small><b class="${cls(fl.saldo)}">${brl(fl.saldo)}</b></div>
-    <div class="card"><small>FGTS Cristian (${lab(fl.ym)})</small><b>${brl(fl.fg.Cristian)}</b></div>
-    <div class="card"><small>FGTS Pedro (${lab(fl.ym)})</small><b>${brl(fl.fg.Pedro)}</b></div>
-    <div class="card"><small>Patrimônio líquido</small><b>${brl(fl.patr)}</b></div>
+    <div class="card"><small>Renda Cristian (${lab(f0.ym)})</small><b>${brl(f0.inc.Cristian)}</b><small class="sub">sobra no mês: ${brl(f0.sobraC)}</small></div>
+    <div class="card"><small>Renda Pedro (${lab(f0.ym)})</small><b>${brl(f0.inc.Pedro)}</b><small class="sub">sobra no mês: ${brl(f0.sobraP)}</small></div>
+    <div class="card ${fl.saldo>=0?'c-pos':'c-neg'}"><small>Saldo em conta (${lab(fl.ym)})</small><b class="${cls(fl.saldo)}">${brl(fl.saldo)}</b><small class="sub">${dSaldo>=0?'+':''}${brl(dSaldo)} no período</small></div>
+    <div class="card"><small>FGTS Cristian (${lab(fl.ym)})</small><b>${brl(fl.fg.Cristian)}</b><small class="sub">atual: ${brl(S.settings.fgts.Cristian.ini)} (+${brl(S.settings.fgts.Cristian.dep)}/mês)</small></div>
+    <div class="card"><small>FGTS Pedro (${lab(fl.ym)})</small><b>${brl(fl.fg.Pedro)}</b><small class="sub">atual: ${brl(S.settings.fgts.Pedro.ini)} (+${brl(S.settings.fgts.Pedro.dep)}/mês)</small></div>
+    <div class="card c-pos"><small>Patrimônio líquido (${lab(fl.ym)})</small><b>${brl(fl.patr)}</b><small class="sub">FGTS total: ${brl(fl.fgT)} (${dFg>=0?'+':''}${brl(dFg)})</small></div>
   </div>
   <div class="panel"><h2>Saldo e FGTS</h2><div class="bar">
    ${['Cristian','Pedro'].map(q=>`<label class="note">Saldo inicial ${q} <input type="number" step="0.01" data-si="${q}" value="${S.settings.saldoIni[q]||0}"></label>`).join('')}</div>
@@ -314,7 +337,7 @@ function rFluxo(){
   <div class="note">Valem para todos os meses. FGTS = saldo atual + depósito mensal, com rendimento mensal.</div></div>
   <div class="row"><div class="panel"><h2>Entradas por pessoa x saídas</h2><canvas id="cf1"></canvas></div>
   <div class="panel"><h2>Saldo em conta e FGTS acumulado</h2><canvas id="cf2"></canvas></div></div>
-  <div class="panel"><h2>Fluxo mensal da família</h2><div class="tw"><table><tr><th>Mês</th><th>Renda Cristian</th><th>Renda Pedro</th><th>Renda total</th><th>Cartão</th><th>Fora do cartão</th><th>Sobra</th><th>Sobra Cristian</th><th>Sobra Pedro</th><th>Saldo em conta</th><th>FGTS Cristian</th><th>FGTS Pedro</th><th>FGTS total</th><th>Patrimônio</th></tr>
+  <div class="panel"><h2>Fluxo mensal da família (${lab(f0.ym)} a ${lab(fl.ym)})</h2><div class="tw"><table><tr><th>Mês</th><th>Renda Cristian</th><th>Renda Pedro</th><th>Renda total</th><th>Cartão</th><th>Fora do cartão</th><th>Sobra</th><th>Sobra Cristian</th><th>Sobra Pedro</th><th>Saldo em conta</th><th>FGTS Cristian</th><th>FGTS Pedro</th><th>FGTS total</th><th>Patrimônio</th></tr>
   ${R.map(r=>`<tr><td><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a></td><td>${num(r.inc.Cristian)}</td><td>${num(r.inc.Pedro)}</td><td><b>${num(r.renda)}</b></td><td>${num(r.cartao)}</td><td>${num(r.fora)}</td><td class="${cls(r.sobra)}"><b>${num(r.sobra)}</b></td><td class="${cls(r.sobraC)}">${num(r.sobraC)}</td><td class="${cls(r.sobraP)}">${num(r.sobraP)}</td><td class="${cls(r.saldo)}">${num(r.saldo)}</td><td>${num(r.fg.Cristian)}</td><td>${num(r.fg.Pedro)}</td><td>${num(r.fgT)}</td><td><b>${num(r.patr)}</b></td></tr>`).join('')}</table></div>
   <div class="note">Parte do Conjunto dividida pelo percentual de Premissas. Saldo em conta = saldo inicial + sobras acumuladas. FGTS = saldo atual + depósito mensal, com rendimento mensal.</div></div>
   <div class="panel"><h2>Despesas fora do cartão por categoria</h2><div class="tw"><table><tr><th>Mês</th>${cats.map(c=>`<th>${esc(c)}</th>`).join('')}<th>Total</th></tr>
@@ -474,12 +497,28 @@ function rCartao(){
 function opts(obj,sel){return Object.entries(obj).map(([k,v])=>`<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('')}
 function quemOpts(sel){return PEOPLE.map(p=>`<option ${p===sel?'selected':''}>${p}</option>`).join('')}
 const cardBadge=x=>(x.portador||x.cartao)?`<small class="note" style="margin-left:6px">(${esc([x.portador,x.cartao&&'final '+x.cartao].filter(Boolean).join(' · '))})</small>`:'';
+function batchBar(rows,isImp=false){
+  const sel=rows.filter(x=>SEL.has(x.id));
+  if(!sel.length)return '';
+  const soma=sel.reduce((a,x)=>a+x.valor,0);
+  return `<div class="batch-bar">
+    <b>✓ ${sel.length} selecionado(s) · ${brl(soma)}</b>
+    <select id="bquem"><option value="">Atribuir Quem…</option>${PEOPLE.map(p=>`<option value="${p}">${p}</option>`).join('')}</select>
+    <select id="btipo"><option value="">Mudar Tipo…</option>${opts(TIPOS,'')}</select>
+    <input id="bcat" list="cats" placeholder="Mudar Categoria…" style="width:150px">
+    <button class="b g" data-act="batch-cat" style="padding:4px 9px;font-size:12px">Aplicar cat.</button>
+    ${isImp?`<button class="b" data-act="batch-ok">✓ Validar selecionados (${sel.length})</button>`:''}
+    <button class="b r" data-act="batch-del">× Excluir (${sel.length})</button>
+    <button class="b g" data-act="batch-clear">Limpar seleção</button>
+  </div>`;
+}
 function rLanc(){
   const fats=[...new Set(S.tx.map(x=>x.fatura))].sort().reverse(),fsel=F.fat||S.settings.base;
   const cats=[...new Set(S.tx.map(x=>x.cat))].sort();
   const rows=S.tx.filter(x=>(fsel==='all'||x.fatura===fsel)&&(!F.rev||x.rev)&&(!F.quem||x.quem===F.quem)&&(!F.tipo||x.tipo===F.tipo)&&(!F.txt||x.desc.toLowerCase().includes(F.txt.toLowerCase()))).sort((a,b)=>b.data.localeCompare(a.data)||a.id-b.id);
   const tot=rows.filter(x=>x.ativo&&x.tipo!=='ignorar').reduce((a,x)=>a+x.valor,0);
   const byTipo={};rows.filter(x=>x.ativo&&x.tipo!=='ignorar').forEach(x=>byTipo[x.tipo]=(byTipo[x.tipo]||0)+x.valor);
+  const allChecked=rows.length>0&&rows.every(x=>SEL.has(x.id));
   return `<div class="panel"><h2>Lançamentos da fatura</h2>
   <div class="bar">
     <input id="ftxt" placeholder="Buscar descrição" value="${esc(F.txt)}">
@@ -491,19 +530,20 @@ function rLanc(){
     <span class="note">${rows.length} itens · total ativo ${brl(tot)} · ${Object.entries(byTipo).map(([t,v])=>TIPOS[t]+': '+brl(v)).join(' · ')}</span>
   </div>
   <datalist id="cats">${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
-  <div class="tw"><table><tr><th class="l">Ativo</th><th class="l">Data</th><th class="l">Descrição</th><th>Parcela</th><th>Valor</th><th class="l">Tipo</th><th class="l">Quem</th><th class="l">Categoria</th><th class="l">Até (mês)</th><th></th></tr>
-  ${rows.map(x=>`<tr data-id="${x.id}"><td class="l"><input type="checkbox" data-f="ativo" ${x.ativo?'checked':''}></td>
+  ${batchBar(rows,false)}
+  <div class="tw"><table><tr><th class="l"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="sel-all-tx" ${allChecked?'checked':''} title="Selecionar todos visíveis"> Descrição</label></th><th class="l">Data</th><th>Parcela</th><th>Valor</th><th class="l">Tipo</th><th class="l">Quem</th><th class="l">Categoria</th><th class="l">Até (mês)</th><th class="l">Ativo</th><th></th></tr>
+  ${rows.map(x=>`<tr data-id="${x.id}"><td class="l"><div style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-sel="${x.id}" ${SEL.has(x.id)?'checked':''}><input class="d" data-f="desc" value="${esc(x.desc)}">${cardBadge(x)}</div></td>
    <td class="l"><input type="date" data-f="data" value="${x.data}"></td>
-   <td class="l"><input class="d" data-f="desc" value="${esc(x.desc)}">${cardBadge(x)}</td>
    <td>${x.tot?`<input type="number" style="width:46px" data-f="cur" value="${x.cur}">/<input type="number" style="width:46px" data-f="tot" value="${x.tot}">`:''}</td>
    <td><input type="number" step="0.01" data-f="valor" value="${x.valor}"></td>
    <td class="l"><select data-f="tipo">${opts(TIPOS,x.tipo)}</select></td>
    <td class="l"><select data-f="quem">${quemOpts(x.quem)}</select></td>
    <td class="l"><input list="cats" data-f="cat" value="${esc(x.cat)}"></td>
    <td class="l">${['fixa','assinatura_mensal','assinatura_anual'].includes(x.tipo)?`<input type="month" data-f="fim" value="${x.fim||''}">`:''}</td>
+   <td class="l"><input type="checkbox" data-f="ativo" ${x.ativo?'checked':''}></td>
    <td><button class="b r" data-act="del-tx" title="Excluir">×</button></td></tr>`).join('')}
   </table></div>
-  <div class="note">Ao mudar o tipo para Parcelada, informe parcela atual/total editando um lançamento existente ou ajuste via import. Itens "Ignorar" não entram em nenhuma conta (ex.: aluguel do Pedro).</div></div>`;
+  <div class="note">Dica: selecione múltiplos itens na 1ª coluna para alterar Quem, Tipo, Categoria ou excluir em lote. Itens "Ignorar" não entram em nenhuma conta.</div></div>`;
 }
 const OCATS=['Moradia','Transporte','Impostos','Saúde','Educação','Seguros','Lazer','Outros'];
 function rFora(){
@@ -515,8 +555,8 @@ function rFora(){
   const cats=[...new Set([...OCATS,...des.map(o=>o.cat||'Outros')])].filter(c=>c!=='Renda'),tot=l=>l.filter(act).reduce((a,o)=>a+offV(o,ref),0);
   const renda=tot(rec),fora=tot(des),pagoVal=paidDes.reduce((a,o)=>a+offV(o,ref),0);
   const row=(o,isRec)=>{const[t,bg,fg]=st(o),ok=isPaid(ref,o.id),active=act(o);return `<tr data-id="${o.id}" style="${t==='encerrado'?'opacity:.55':''}">
-   ${isRec?'':`<td class="l">${active?`<input type="checkbox" data-paid="${o.id}" data-ym="${ref}" ${ok?'checked':''} title="Marcar como pago em ${lab(ref)}">`:'–'}</td>`}
    <td class="l"><input class="d" data-f="nome" value="${esc(o.nome)}"></td>
+   ${isRec?'':`<td class="l">${active?`<input type="checkbox" data-paid="${o.id}" data-ym="${ref}" ${ok?'checked':''} title="Marcar como pago em ${lab(ref)}">`:'–'}</td>`}
    <td class="l"><select data-f="quem">${quemOpts(o.quem)}</select></td>
    <td><input type="number" step="0.01" data-f="valor" value="${o.valor}"></td>
    <td><input type="number" min="1" max="31" data-f="venc" value="${o.venc||''}" placeholder="dia" style="width:54px"></td>
@@ -529,13 +569,13 @@ function rFora(){
    <td><button class="b r" data-act="del-off">×</button></td></tr>`};
   const group=(title,list,cat,kind)=>{const isRec=kind==='receita',sorted=[...list].sort((a,b)=>(a.venc||99)-(b.venc||99));return `<div class="panel"><div class="bar" style="justify-content:space-between"><h2 style="margin:0">${esc(title)} <span class="note">· ${brl(tot(list))} em ${lab(ref)}</span></h2>
    <button class="b g" data-act="add-off" data-cat="${esc(cat)}" data-kind="${kind}" ${isRec?'data-quem="Cristian"':''}>+ Adicionar</button></div>
-   ${sorted.length?`<div class="tw"><table><tr>${isRec?'':'<th class="l">Pago</th>'}<th class="l">Nome</th><th class="l">Quem</th><th>Valor</th><th>Venc.</th><th class="l">Frequência</th><th class="l">Início</th><th class="l">Fim</th><th>Parcelas</th><th>Reajuste % a.a.</th><th></th><th></th></tr>${sorted.map(o=>row(o,isRec)).join('')}</table></div>`:'<div class="note">Nenhum item.</div>'}</div>`};
+   ${sorted.length?`<div class="tw"><table><tr><th class="l">Nome</th>${isRec?'':'<th class="l">Pago</th>'}<th class="l">Quem</th><th>Valor</th><th>Venc.</th><th class="l">Frequência</th><th class="l">Início</th><th class="l">Fim</th><th>Parcelas</th><th>Reajuste % a.a.</th><th></th><th></th></tr>${sorted.map(o=>row(o,isRec)).join('')}</table></div>`:'<div class="note">Nenhum item.</div>'}</div>`};
   return `<div class="bar"><b>Mês de referência</b><select id="fom">${Ms.map(m=>`<option value="${m}" ${m===ref?'selected':''}>${lab(m)}</option>`).join('')}</select>
    <button class="b g" data-act="add-cat">+ Nova categoria</button></div>
-  <div class="cards"><div class="card"><small>Renda no mês</small><b>${brl(renda)}</b></div><div class="card"><small>Despesas fora do cartão</small><b>${brl(fora)}</b></div>
-   <div class="card"><small>Contas pagas (${lab(ref)})</small><b>${paidDes.length}/${actDes.length}</b><small>${brl(pagoVal)} pagos · faltam ${brl(Math.max(0,fora-pagoVal))}</small></div>
-   <div class="card"><small>Sobra antes do cartão</small><b class="${cls(renda-fora)}">${brl(renda-fora)}</b></div>
-   <div class="card"><small>Fora do cartão / renda</small><b>${renda?Math.round(fora/renda*100):0}%</b></div></div>
+  <div class="cards"><div class="card c-pos"><small>Renda no mês</small><b>${brl(renda)}</b><span class="sub">${lab(ref)}</span></div>
+   <div class="card"><small>Despesas fora do cartão</small><b>${brl(fora)}</b><span class="sub">${renda?Math.round(fora/renda*100):0}% da renda</span></div>
+   <div class="card ${paidDes.length===actDes.length&&actDes.length?'c-pos':'c-warn'}"><small>Contas pagas (${lab(ref)})</small><b>${paidDes.length}/${actDes.length}</b><span class="sub">${brl(pagoVal)} pagos · faltam ${brl(Math.max(0,fora-pagoVal))}</span></div>
+   <div class="card ${renda-fora>=0?'c-pos':'c-neg'}"><small>Sobra antes do cartão</small><b class="${cls(renda-fora)}">${brl(renda-fora)}</b><span class="sub">Disponível p/ cartão e caixa</span></div></div>
   <div class="note">Marque "Pago" para controlar as contas quitadas em ${lab(ref)}. Informe "Venc." (dia 1–31) para ordenar por vencimento. Preencha "Parcelas" para calcular o fim automaticamente, e "Reajuste" para corrigir a cada 12 meses.</div>
   ${group('Rendas',rec,'Renda','receita')}
   ${cats.map(c=>({c,l:des.filter(o=>(o.cat||'Outros')===c)})).filter(g=>g.l.length||OCATS.includes(g.c)).map(g=>group(g.c,g.l,g.c,'despesa')).join('')}`;
@@ -546,7 +586,9 @@ function rPrem(){
    <label>Mês da fatura atual (base)</label><input type="month" data-s="base" value="${s.base}">
    <label>Meses projetados no Cartão</label><input type="number" data-s="horizon" value="${s.horizon}" min="1" max="36">
   </div>
-  <div class="note">Variáveis estimadas ficam na aba Cartão. Saldo inicial e FGTS ficam em Fluxo de caixa. O rateio do Conjunto fica em Visão mensal e Histórico.</div></div>
+  <div class="note">No Fluxo de caixa, Visão Geral e Visão Mensal, o horizonte padrão acompanha sempre <b>dezembro do ano seguinte ao mês base</b> (${lab(nextYearDec())}), podendo ser ajustado no seletor "Projetar até" do topo da aba.</div></div>
+  <div class="panel"><h2>Atalhos de teclado</h2>
+   <div class="note">• <code>Alt + N</code>: Abrir modal de novo lançamento rápido<br>• <code>Alt + T</code>: Alternar entre modo claro e modo escuro<br>• <code>Esc</code>: Fechar modal rápido ou limpar seleção em lote</div></div>
   <div class="panel"><h2>Dados e backups</h2><div class="bar">
    <button class="b g" data-act="export-json">Exportar backup (json)</button>
    <label class="b g">Importar backup<input type="file" accept=".json" id="impj" hidden></label>
@@ -581,6 +623,26 @@ function bind(m){
     if(list===S.tx&&!o.rev&&['tipo','quem','cat','fim'].includes(f))remember(o,f)
     saveRender();
   }));
+  m.querySelectorAll('[data-sel]').forEach(el=>el.addEventListener('change',()=>{
+    const id=+el.dataset.sel;el.checked?SEL.add(id):SEL.delete(id);render();
+  }));
+  const sa=m.querySelector('#sel-all-tx');
+  if(sa)sa.addEventListener('change',()=>{
+    m.querySelectorAll('[data-sel]').forEach(el=>{const id=+el.dataset.sel;sa.checked?SEL.add(id):SEL.delete(id)});
+    render();
+  });
+  const bq=m.querySelector('#bquem');
+  if(bq)bq.addEventListener('change',()=>{
+    if(!bq.value)return;
+    S.tx.forEach(x=>{if(SEL.has(x.id)){x.quem=bq.value;if(!x.rev)remember(x,'quem')}});
+    saveRender();
+  });
+  const bt=m.querySelector('#btipo');
+  if(bt)bt.addEventListener('change',()=>{
+    if(!bt.value)return;
+    S.tx.forEach(x=>{if(SEL.has(x.id)){x.tipo=bt.value;if(x.tipo==='parcelada'&&!x.tot){x.cur=1;x.tot=2}if(!x.rev)remember(x,'tipo')}});
+    saveRender();
+  });
   m.querySelectorAll('tr[data-rule] [data-rf]').forEach(el=>el.addEventListener('change',()=>{
     const k=el.closest('tr').dataset.rule,r=S.rules[k],f=el.dataset.rf;
     if(!r)return;
@@ -621,9 +683,13 @@ function bind(m){
 }
 function act(el){
   const a=el.dataset.act,id=+(el.closest('tr')?.dataset.id||0),snapId=+(el.closest('tr')?.dataset.snap||0);
-  if(a==='del-tx'){S.tx=S.tx.filter(x=>x.id!==id)}
+  if(a==='del-tx'){S.tx=S.tx.filter(x=>x.id!==id);SEL.delete(id)}
   else if(a==='del-off'){S.off=S.off.filter(x=>x.id!==id)}
   else if(a==='del-rule'){delete S.rules[el.closest('tr').dataset.rule]}
+  else if(a==='batch-cat'){const c=document.getElementById('bcat')?.value.trim();if(!c)return;S.tx.forEach(x=>{if(SEL.has(x.id)){x.cat=c;if(!x.rev)remember(x,'cat')}})}
+  else if(a==='batch-ok'){S.tx.forEach(x=>{if(SEL.has(x.id)){x.rev=false;remember(x)}});SEL.clear()}
+  else if(a==='batch-del'){if(!confirm(`Excluir ${SEL.size} lançamento(s) selecionado(s)?`))return;S.tx=S.tx.filter(x=>!SEL.has(x.id));SEL.clear()}
+  else if(a==='batch-clear'){SEL.clear();render();return}
   else if(a==='pct-renda'){S.settings.pctCristian=rendaPct(el.dataset.ym||S.settings.base)}
   else if(a==='pct-50'){S.settings.pctCristian=50}
   else if(a==='add-tx'){S.tx.push({id:Date.now(),data:new Date().toISOString().slice(0,10),desc:'Novo lançamento',cur:null,tot:null,valor:0,tipo:'variavel',cat:'Sem categoria',quem:'Cristian',cartao:'',fim:null,ativo:true,fatura:S.settings.base,rev:false})}
@@ -636,8 +702,8 @@ function act(el){
   else if(a==='imp-merge'){if(!confirmImport('merge'))return}
   else if(a==='imp-replace'){if(!confirmImport('replace'))return}
   else if(a==='imp-cancel'){IMP=null}
-  else if(a==='ok-tx'){const o=S.tx.find(x=>x.id===id);o.rev=false;remember(o)}
-  else if(a==='ok-all'){S.tx.filter(x=>x.rev).forEach(x=>{x.rev=false;remember(x)})}
+  else if(a==='ok-tx'){const o=S.tx.find(x=>x.id===id);o.rev=false;SEL.delete(id);remember(o)}
+  else if(a==='ok-all'){S.tx.filter(x=>x.rev).forEach(x=>{x.rev=false;SEL.delete(x.id);remember(x)})}
   else if(a==='add-snap'){const m=prompt('Descrição do ponto de restauração:','Ponto manual');if(!m)return;saveSnap(m);render();return}
   else if(a==='restore-snap'){if(!restoreSnap(snapId))return}
   else if(a==='del-snap'){delSnap(snapId);render();return}
@@ -763,6 +829,7 @@ function confirmImport(mode='merge'){
 function rImp(){
   const rev=S.tx.filter(x=>x.rev).sort((a,b)=>b.fatura.localeCompare(a.fatura)||b.data.localeCompare(a.data));
   const cats=[...new Set(S.tx.map(x=>x.cat))].sort();
+  const allChecked=rev.length>0&&rev.every(x=>SEL.has(x.id));
   let pre='';
   if(IMP){
     const soma=IMP.tx.filter(x=>x.tipo!=='ignorar').reduce((a,x)=>a+x.valor,0),ex=S.tx.filter(x=>x.fatura===IMP.fatura);
@@ -788,10 +855,11 @@ function rImp(){
   <div class="bar"><label class="b">Escolher arquivo (xlsx)<input type="file" accept=".xlsx,.xls" id="impx" hidden></label><span class="note">ou solte o arquivo .xlsx aqui</span></div></div>
   ${pre}
   <div class="panel"><h2>2. Revisar lançamentos (${rev.length})</h2>
-  ${rev.length?`<div class="bar"><button class="b" data-act="ok-all">Confirmar todos (${rev.length} validados)</button><span class="note">O nome entre parênteses veio direto da planilha da fatura. Ao ajustar tipo/categoria/quem, o app aprende para os próximos.</span></div>`:'<div class="note">Nada pendente. Tudo validado.</div>'}
+  ${rev.length?`<div class="bar"><button class="b" data-act="ok-all">Confirmar todos (${rev.length} validados)</button><span class="note">Selecione vários itens para alterar Quem/Tipo/Categoria ou validar em lote.</span></div>`:'<div class="note">Nada pendente. Tudo validado.</div>'}
   <datalist id="cats">${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
-  ${rev.length?`<div class="tw"><table><tr><th class="l">Fatura</th><th class="l">Data</th><th class="l">Descrição (Portador na fatura)</th><th>Parcela</th><th>Valor</th><th class="l">Quem</th><th class="l">Tipo</th><th class="l">Categoria</th><th class="l">Até (mês)</th><th></th></tr>
-  ${rev.map(x=>`<tr data-id="${x.id}"><td class="l">${lab(x.fatura)}</td><td class="l">${x.data.slice(8)}/${x.data.slice(5,7)}</td><td class="l">${esc(x.desc)}${cardBadge(x)}</td><td>${x.tot?x.cur+'/'+x.tot:''}</td><td>${num(x.valor)}</td>
+  ${batchBar(rev,true)}
+  ${rev.length?`<div class="tw"><table><tr><th class="l"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="sel-all-tx" ${allChecked?'checked':''} title="Selecionar todos pendentes"> Descrição (Portador na fatura)</label></th><th class="l">Fatura</th><th class="l">Data</th><th>Parcela</th><th>Valor</th><th class="l">Quem</th><th class="l">Tipo</th><th class="l">Categoria</th><th class="l">Até (mês)</th><th></th></tr>
+  ${rev.map(x=>`<tr data-id="${x.id}"><td class="l"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-sel="${x.id}" ${SEL.has(x.id)?'checked':''}><span>${esc(x.desc)}${cardBadge(x)}</span></label></td><td class="l">${lab(x.fatura)}</td><td class="l">${x.data.slice(8)}/${x.data.slice(5,7)}</td><td>${x.tot?x.cur+'/'+x.tot:''}</td><td>${num(x.valor)}</td>
    <td class="l"><select data-f="quem">${quemOpts(x.quem)}</select></td>
    <td class="l"><select data-f="tipo">${opts(TIPOS,x.tipo)}</select></td>
    <td class="l"><input list="cats" data-f="cat" value="${esc(x.cat)}"></td>
@@ -816,8 +884,8 @@ function rHist(){
   const cat={};S.tx.filter(x=>x.fatura===sel&&live(x)).forEach(x=>{const c=cat[x.cat]=cat[x.cat]||{Cristian:0,Pedro:0,Conjunto:0,t:0};c[x.quem]=(c[x.quem]||0)+x.valor;c.t+=x.valor});
   const catRows=Object.entries(cat).sort((a,b)=>b[1].t-a[1].t);
   return `<div class="panel"><h2>Histórico por fatura</h2><div class="bar">${pctBox()}</div><div class="row" style="margin-bottom:10px"><div style="flex:1;min-width:420px"><canvas id="c3"></canvas></div></div>
-  <div class="tw"><table><tr><th>Fatura</th><th>Total</th><th>Cristian</th><th>Pedro</th><th>Conjunto</th><th>Cristian paga</th><th>Pedro paga</th><th>Parcelas</th><th>Fixas</th><th>Assinaturas</th><th>Variáveis</th></tr>
-  ${fats.map(f=>{const s=split(f),g=grp(f);return `<tr><td>${lab(f)}</td><td><b>${num(s.total)}</b></td><td>${num(s.Cristian)}</td><td>${num(s.Pedro)}</td><td>${num(s.Conjunto)}</td><td><b>${num(s.payC)}</b></td><td><b>${num(s.payP)}</b></td><td>${num(g.parcelas)}</td><td>${num(g.fixas)}</td><td>${num(g.assinaturas)}</td><td>${num(g.variaveis)}</td></tr>`}).join('')}
+  <div class="tw"><table><tr><th class="l">Fatura</th><th>Total</th><th>Cristian</th><th>Pedro</th><th>Conjunto</th><th>Cristian paga</th><th>Pedro paga</th><th>Parcelas</th><th>Fixas</th><th>Assinaturas</th><th>Variáveis</th></tr>
+  ${fats.map(f=>{const s=split(f),g=grp(f);return `<tr><td class="l">${lab(f)}</td><td><b>${num(s.total)}</b></td><td>${num(s.Cristian)}</td><td>${num(s.Pedro)}</td><td>${num(s.Conjunto)}</td><td><b>${num(s.payC)}</b></td><td><b>${num(s.payP)}</b></td><td>${num(g.parcelas)}</td><td>${num(g.fixas)}</td><td>${num(g.assinaturas)}</td><td>${num(g.variaveis)}</td></tr>`}).join('')}
   </table></div><div class="note">"Paga" = lançamentos próprios + parte do Conjunto (${S.settings.pctCristian}% Cristian). Itens "Ignorar" ficam de fora.</div></div>
   <div class="panel"><h2>Gastos por categoria</h2><div class="bar"><select id="fhf">${fats.map(f=>`<option value="${f}" ${f===sel?'selected':''}>${lab(f)}</option>`).join('')}</select></div>
   <div class="tw"><table><tr><th class="l">Categoria</th><th>Cristian</th><th>Pedro</th><th>Conjunto</th><th>Total</th></tr>
@@ -830,10 +898,19 @@ function drawHist(){
 }
 
 document.getElementById('view').addEventListener('change',e=>{view=e.target.value;render()});
-document.getElementById('tabs').addEventListener('click',e=>{if(e.target.dataset.tab){tab=e.target.dataset.tab;render()}});
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b){tab=b.dataset.tab;SEL.clear();render()}});
 document.getElementById('theme-btn')?.addEventListener('click',()=>{
   applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
   render();
+});
+window.addEventListener('keydown',e=>{
+  if(e.altKey&&e.key.toLowerCase()==='n'){e.preventDefault();openQuickAdd(tab==='fora'?'fora':'cartao')}
+  else if(e.altKey&&e.key.toLowerCase()==='t'){e.preventDefault();applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');render()}
+  else if(e.key==='Escape'){
+    const qm=document.getElementById('qmodal');
+    if(qm&&!qm.hidden){qm.hidden=true}
+    else if(SEL.size){SEL.clear();render()}
+  }
 });
 function openQuickAdd(mode='cartao'){
   const qm=document.getElementById('qmodal');if(!qm)return;
@@ -895,7 +972,7 @@ function openQuickAdd(mode='cartao'){
     qm.hidden=true;save();render();
   };
 }
-document.getElementById('fab-add')?.addEventListener('click',()=>openQuickAdd('cartao'));
+document.getElementById('fab-add')?.addEventListener('click',()=>openQuickAdd(tab==='fora'?'fora':'cartao'));
 // ---- Sincronização (Supabase) ----
 const CFG=window.CONFIG||{},sb=CFG.SUPABASE_URL&&window.supabase?supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY):null;
 let timer=null,lastRemote=null;
@@ -952,5 +1029,5 @@ async function start(){
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pull(false)});
   window.addEventListener('focus',()=>pull(false));
 }
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').then(r=>r.update()).catch(()=>{});
 sb?start():render();
