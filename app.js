@@ -2,12 +2,20 @@
 const KEY='planejamento-financeiro-v1',SNAP_KEY='planejamento-financeiro-snaps-v1';
 const TIPOS={parcelada:'Parcelada',fixa:'Fixa',assinatura_mensal:'Assinatura mensal',assinatura_anual:'Assinatura anual',variavel:'Variável',ignorar:'Ignorar'};
 const GROUP={parcelada:'parcelas',fixa:'fixas',assinatura_mensal:'assinaturas',assinatura_anual:'assinaturas',variavel:'variaveis'};
-const GLAB={parcelas:'Parcelas',fixas:'Despesas fixas',assinaturas:'Assinaturas',variaveis:'Variáveis (estimativa)'};
+const GLAB={parcelas:'Parcelas',fixas:'Despesas fixas',assinaturas:'Assinaturas',variaveis:'Variáveis / Opcionais'};
 const GCOL={parcelas:'#0e6b7c',fixas:'#f08c00',assinaturas:'#9775fa',variaveis:'#ced4da'};
 const PEOPLE=['Cristian','Pedro','Conjunto'];
 const MN=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const DEFAULT_VAR_ITEMS=[
+  {id:1,ativo:false,nome:'Gasolina / Combustível',quem:'Conjunto',cat:'Transporte',valor:0,fim:null},
+  {id:2,ativo:false,nome:'Jantar fora / Restaurantes',quem:'Conjunto',cat:'Alimentação',valor:0,fim:null},
+  {id:3,ativo:false,nome:'Mercado / Feira',quem:'Conjunto',cat:'Mercado',valor:0,fim:null},
+  {id:4,ativo:false,nome:'Delivery / iFood',quem:'Conjunto',cat:'Alimentação',valor:0,fim:null},
+  {id:5,ativo:false,nome:'Farmácia / Saúde',quem:'Conjunto',cat:'Saúde',valor:0,fim:null},
+  {id:6,ativo:false,nome:'Lazer / Passeios',quem:'Conjunto',cat:'Lazer',valor:0,fim:null}
+];
 
-const EMPTY={tx:[],off:[],settings:{pctCristian:50,horizon:14,base:new Date().toISOString().slice(0,7),includeVar:true,varAmt:{Cristian:0,Pedro:0,Conjunto:0},saldoIni:{Cristian:0,Pedro:0},faturaOficial:0}};
+const EMPTY={tx:[],off:[],settings:{pctCristian:50,horizon:14,base:new Date().toISOString().slice(0,7),includeVar:true,varAmt:{Cristian:0,Pedro:0,Conjunto:0},varItems:[],saldoIni:{Cristian:0,Pedro:0},faturaOficial:0}};
 const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
 const key=d=>{
   const b=norm(d).replace(/parcela\s*\d+\s*de\s*\d+/g,'').trim();
@@ -17,7 +25,46 @@ const key=d=>{
 function splitCasa(d){const o=d.off||[],i=o.findIndex(x=>x.nome==='Aluguel+taxas+IPTU+seguro (casa nova)');if(i<0)return;const b=o[i];let id=Math.max(0,...o.map(x=>x.id))+1;
  const p=(nome,valor)=>({...b,id:id++,nome:nome+' (casa nova)',valor});
  o.splice(i,1,p('Aluguel',2158.18),p('Taxa de serviço',55.90),p('IPTU',161.77),p('Seguro incêndio',28.73))}
-function mig(d){splitCasa(d);d.rules=d.rules||{};d.meta=d.meta||{};d.paid=d.paid||{};{const e=d.extras=d.extras||{};e.metas=e.metas||{};e.reserva=e.reserva||{meta:0,saldo:0,aporte:0,rend:0.8};e.inv=e.inv||[];e.saques=e.saques||[];e.compras=e.compras||[];e.cen=e.cen||{moradiaPct:0,rendaPct:0,varPct:0,extra:0,extraDe:'',quitarId:'',quitarMes:''}}const st=d.settings;st.fgts=st.fgts||{Cristian:{ini:0,dep:0},Pedro:{ini:0,dep:0}};if(st.fgtsRate==null)st.fgtsRate=0.25;d.off.forEach(o=>{if(!o.freq)o.freq='mensal'});d.tx.forEach(x=>{if(!x.fatura)x.fatura=d.settings.base});if(d.rulesV!==3){d.rules={};d.rulesV=3;learn(d,d.tx)}return d}
+function mig(d){
+  splitCasa(d);d.rules=d.rules||{};d.meta=d.meta||{};d.paid=d.paid||{};
+  {const e=d.extras=d.extras||{};e.metas=e.metas||{};e.reserva=e.reserva||{meta:0,saldo:0,aporte:0,rend:0.8};e.inv=e.inv||[];e.saques=e.saques||[];e.compras=e.compras||[];e.cen=e.cen||{moradiaPct:0,rendaPct:0,varPct:0,extra:0,extraDe:'',quitarId:'',quitarMes:''}}
+  const st=d.settings;
+  st.pctCristian=50;
+  st.fgts=st.fgts||{Cristian:{ini:0,dep:0},Pedro:{ini:0,dep:0}};
+  if(st.fgtsRate==null)st.fgtsRate=0.25;
+  if(!Array.isArray(st.varItems))st.varItems=[];
+  else st.varItems=st.varItems.filter(v=>v&&v.nome);
+  d.off.forEach(o=>{if(!o.freq)o.freq='mensal'});
+  d.tx.forEach(x=>{
+    if(!x.fatura)x.fatura=d.settings.base;
+    if(/quintoandar/i.test(x.desc)){
+      x.quem='Pedro';
+      x.ativo=true;
+      if(x.tipo==='ignorar')x.tipo=x.tot?'parcelada':'fixa';
+      if(!x.cat||x.cat==='Sem categoria')x.cat='Moradia';
+    }
+  });
+  if(d.rulesV!==6){
+    st.pctCristian=50;
+    st.varAmt={Cristian:0,Pedro:0,Conjunto:0};
+    st.includeVar=true;
+    st.varItems=(st.varItems||[]).filter(v=>v.valor>0);
+    d.off.forEach(o=>{
+      if(o.kind==='receita')return;
+      if(/quintoandar/i.test(o.nome))o.quem='Pedro';
+      else if(/aluguel|casa nova|iptu|taxa de serv|seguro inc|condom|carro|ipva|seguro auto|financiamento/i.test(o.nome))o.quem='Conjunto';
+    });
+    d.rules={};d.rulesV=6;learn(d,d.tx);
+  }
+  Object.entries(d.rules).forEach(([k,r])=>{
+    if(k.includes('quintoandar')||/quintoandar/i.test(r.exemplo||'')){
+      r.quem='Pedro';
+      if(r.tipo==='ignorar')r.tipo='fixa';
+      if(!r.cat||r.cat==='Sem categoria')r.cat='Moradia';
+    }
+  });
+  return d;
+}
 let S=load(),view='casal',tab='geral',MS=null,charts=[],IMP=null,rulesOpen=false,currentUser=null,SEL=new Set();
 const F={quem:'',tipo:'',txt:'',fat:null,rev:false,hf:null,rtxt:''};
 const cur=x=>x.fatura===S.settings.base;
@@ -54,11 +101,10 @@ const cls=v=>v<0?'neg':'';
 const months=(n=S.settings.horizon)=>Array.from({length:n+1},(_,k)=>addM(S.settings.base,k));
 
 function weight(q){
-  const p=S.settings.pctCristian/100;
   switch(view){
     case 'casal':return 1;
-    case 'cristian':return q==='Cristian'?1:q==='Pedro'?0:p;
-    case 'pedro':return q==='Pedro'?1:q==='Cristian'?0:1-p;
+    case 'cristian':return q==='Cristian'?1:q==='Pedro'?0:0.5;
+    case 'pedro':return q==='Pedro'?1:q==='Cristian'?0:0.5;
     default:return q==='Conjunto'?1:0;
   }
 }
@@ -80,9 +126,12 @@ function txAmount(x,k){
   }
   return 0;
 }
+const vItemActive=(v,ym)=>v.ativo&&v.valor>0&&(!v.inicio||ym>=v.inicio)&&(!v.fim||ym<=v.fim);
 function varAt(q,k){
   if(k===0)return S.tx.filter(x=>live(x)&&x.tipo==='variavel'&&x.quem===q&&cur(x)).reduce((a,x)=>a+x.valor,0);
-  return S.settings.includeVar?(S.settings.varAmt[q]||0):0;
+  if(!S.settings.includeVar)return 0;
+  const ym=addM(S.settings.base,k);
+  return (S.settings.varItems||[]).filter(v=>v.quem===q&&vItemActive(v,ym)).reduce((a,v)=>a+v.valor,0);
 }
 const offV=(o,ym)=>o.valor*Math.pow(1+(o.reaj||0)/100,Math.floor(diffM(o.inicio,ym)/12));
 const offActive=(o,ym)=>o.inicio<=ym&&(!o.fim||ym<=o.fim)&&(o.freq!=='anual'||o.inicio.slice(5)===ym.slice(5));
@@ -92,21 +141,21 @@ function compute(n){
   const incP=!!S.settings.includePlans,E=S.extras,rr=(E.reserva?.rend||0)/100;
   let res=E.reserva?.saldo||0;
   return months(n).map((ym,k)=>{
-    const g={parcelas:0,fixas:0,assinaturas:0,variaveis:0};
-    S.tx.forEach(x=>{const a=txAmount(x,k);if(a)g[GROUP[x.tipo]]+=a*weight(x.quem)});
-    if(incP)E.compras.forEach(c=>{const np=Math.max(1,c.np||1),d=diffM(c.mes,ym);if(d>=0&&d<np)g.parcelas+=(c.valor/np)*weight(c.quem)});
-    PEOPLE.forEach(q=>g.variaveis+=varAt(q,k)*weight(q));
+    const g={parcelas:0,fixas:0,assinaturas:0,variaveis:0},byQ={Cristian:0,Pedro:0,Conjunto:0};
+    S.tx.forEach(x=>{const a=txAmount(x,k);if(a){g[GROUP[x.tipo]]+=a*weight(x.quem);byQ[x.quem]+=a}});
+    if(incP)E.compras.forEach(c=>{const np=Math.max(1,c.np||1),d=diffM(c.mes,ym);if(d>=0&&d<np){const v=c.valor/np;g.parcelas+=v*weight(c.quem);byQ[c.quem]+=v}});
+    PEOPLE.forEach(q=>{const v=varAt(q,k);g.variaveis+=v*weight(q);byQ[q]+=v});
     let renda=0,fora=0;
-    S.off.forEach(o=>{if(!offActive(o,ym))return;const v=offV(o,ym)*weight(o.quem);o.kind==='receita'?renda+=v:fora+=v});
+    S.off.forEach(o=>{if(!offActive(o,ym))return;const raw=offV(o,ym),v=raw*weight(o.quem);if(o.kind==='receita')renda+=v;else{fora+=v;byQ[o.quem]+=raw}});
     if(incP){
       const inRes=!(E.reserva.meta&&res>=E.reserva.meta)?(E.reserva.aporte||0):0;
-      res=res*(1+rr)+inRes;fora+=inRes*weight('Conjunto');
-      E.inv.forEach(i=>{if(i.inicio<=ym&&(!i.fim||ym<=i.fim))fora+=(i.valor||0)*weight(i.quem)});
+      res=res*(1+rr)+inRes;fora+=inRes*weight('Conjunto');byQ.Conjunto+=inRes;
+      E.inv.forEach(i=>{if(i.inicio<=ym&&(!i.fim||ym<=i.fim)){const v=i.valor||0;fora+=v*weight(i.quem);byQ[i.quem]+=v}});
       E.saques.forEach(x=>{if(x.mes===ym&&x.destino==='caixa')renda+=(x.valor||0)*weight(x.quem)});
     }
     const comprometido=g.parcelas+g.fixas+g.assinaturas,cartao=comprometido+g.variaveis;
     const total=cartao+fora,sobra=renda-total;saldo+=sobra;
-    return {ym,k,g,renda,fora,comprometido,cartao,total,sobra,saldo};
+    return {ym,k,g,byQ,renda,fora,comprometido,cartao,total,sobra,saldo};
   });
 }
 
@@ -134,9 +183,10 @@ function destroyCharts(){charts.forEach(c=>c.destroy());charts=[]}
 function captureFocus(m){
   const a=document.activeElement;
   if(!a||!m.contains(a))return null;
-  const tr=a.closest('tr[data-id]'),trR=a.closest('tr[data-rule]');
+  const tr=a.closest('tr[data-id]'),trR=a.closest('tr[data-rule]'),trV=a.closest('tr[data-vid]');
   const sel=tr&&a.dataset.f?`tr[data-id="${tr.dataset.id}"]${tr.dataset.list?`[data-list="${tr.dataset.list}"]`:''} [data-f="${a.dataset.f}"]`:
     trR&&a.dataset.rf?`tr[data-rule="${CSS.escape(trR.dataset.rule)}"] [data-rf="${a.dataset.rf}"]`:
+    trV&&a.dataset.vf?`tr[data-vid="${trV.dataset.vid}"] [data-vf="${a.dataset.vf}"]`:
     a.id?`#${a.id}`:
     ['s','fg','meta','res','cen','v','si'].map(k=>a.dataset[k]!=null?`[data-${k}="${CSS.escape(a.dataset[k])}"]`:null).find(Boolean);
   if(!sel)return null;
@@ -152,12 +202,12 @@ function restoreFocus(m,fc){
 }
 function updateMobBar(){
   const mb=document.getElementById('mob-bar');if(!mb)return;
-  const base=S.settings.base,k0=compute(1)[0],sp=split(base),p=S.settings.pctCristian/100;
-  const offP=S.off.filter(o=>offActive(o,base)&&o.kind!=='receita').reduce((a,o)=>a+offV(o,base)*(o.quem==='Pedro'?1:o.quem==='Conjunto'?1-p:0),0);
+  const base=S.settings.base,k0=compute(1)[0],sp=split(base);
+  const offP=S.off.filter(o=>offActive(o,base)&&o.kind!=='receita').reduce((a,o)=>a+offV(o,base)*(o.quem==='Pedro'?1:o.quem==='Conjunto'?0.5:0),0);
   mb.innerHTML=`<span><small>Mês base</small><b>${lab(base)}</b></span>
     <span><small>Fatura atual</small><b>${brl(k0.cartao)}</b></span>
     <span><small>Sobra mês</small><b class="${cls(k0.sobra)}">${brl(k0.sobra)}</b></span>
-    <span><small>Pedro → Cristian</small><b>${brl(sp.payP+offP)}</b></span>`;
+    <span><small>Parte Pedro</small><b>${brl(sp.payP+offP)}</b></span>`;
 }
 function render(){
   destroyCharts();
@@ -193,11 +243,11 @@ const horizonCtrl=()=>{
 function series(){
   const base=S.settings.base,proj=compute(Math.max(1,diffM(base,endMonth())));
   const hist=allMonths().filter(m=>m<base).map(ym=>{
-    const g={parcelas:0,fixas:0,assinaturas:0,variaveis:0};
-    S.tx.forEach(x=>{if(x.fatura===ym&&live(x))g[GROUP[x.tipo]]+=x.valor*weight(x.quem)});
-    let renda=0,fora=0;S.off.forEach(o=>{if(!offActive(o,ym))return;const v=offV(o,ym)*weight(o.quem);o.kind==='receita'?renda+=v:fora+=v});
+    const g={parcelas:0,fixas:0,assinaturas:0,variaveis:0},byQ={Cristian:0,Pedro:0,Conjunto:0};
+    S.tx.forEach(x=>{if(x.fatura===ym&&live(x)){g[GROUP[x.tipo]]+=x.valor*weight(x.quem);byQ[x.quem]+=x.valor}});
+    let renda=0,fora=0;S.off.forEach(o=>{if(!offActive(o,ym))return;const raw=offV(o,ym),v=raw*weight(o.quem);if(o.kind==='receita')renda+=v;else{fora+=v;byQ[o.quem]+=raw}});
     const cartao=g.parcelas+g.fixas+g.assinaturas+g.variaveis,total=cartao+fora;
-    return {ym,k:-1,g,renda,fora,cartao,total,sobra:renda-total,saldo:null};
+    return {ym,k:-1,g,byQ,renda,fora,cartao,total,sobra:renda-total,saldo:null};
   });
   return [...hist,...proj];
 }
@@ -206,27 +256,28 @@ function rGeral(){
   const sum=(rows,f)=>rows.reduce((a,r)=>a+r[f],0);
   const nrev=S.tx.filter(x=>x.rev).length,base=S.settings.base;
   const C=compute(Math.max(1,diffM(base,endMonth()))),k0=C[0],k1=C[1],parcRest=C.slice(1).reduce((a,r)=>a+r.g.parcelas,0),fim=R[R.length-1],avg=C.slice(1).reduce((a,r)=>a+r.sobra,0)/(C.length-1),sp=split(base);
-  const pctRenda=k0.renda?Math.round(k0.cartao/k0.renda*100):0,diffNext=k1.cartao-k0.cartao;
+  const pctRenda=k0.renda?Math.round(k0.cartao/k0.renda*100):0;
+  const optAtivas=(S.settings.varItems||[]).filter(v=>v.ativo&&v.valor>0).length;
   return `${nrev?`<div class="warn">${nrev} lançamentos aguardando validação: ficam fora dos cálculos até você confirmar (aba Importar / Revisar).</div>`:''}
   <div class="bar" style="justify-content:space-between;margin-bottom:10px">
     ${horizonCtrl()}
-    ${S.settings.includePlans?`<span class="note" style="color:var(--accent);font-weight:600">📋 Incluindo itens da aba Planos</span>`:''}
+    <span class="note">Projeção: <b>apenas fixas, parcelas e assinaturas programadas</b>${optAtivas?` + <b>${optAtivas} estimativa(s) manual(is)</b>`:' (sem simulação automática de variáveis)'}${S.settings.includePlans?' · 📋 com Planos':''}</span>
   </div>
   <div class="cards">
-    <div class="card"><small>Fatura atual (${lab(k0.ym)})</small><b>${brl(k0.cartao)}</b><small class="sub">${pctRenda}% da renda · comprometido ${brl(k0.comprometido)}</small></div>
-    <div class="card"><small>Próxima fatura (${lab(k1.ym)})</small><b>${brl(k1.comprometido)}</b><small class="sub">c/ variáveis: ${brl(k1.cartao)} (${diffNext>=0?'+':''}${brl(diffNext)})</small></div>
+    <div class="card"><small>Fatura atual (${lab(k0.ym)})</small><b>${brl(k0.cartao)}</b><small class="sub">${pctRenda}% da renda · fixas/parc. ${brl(k0.comprometido)}</small></div>
+    <div class="card"><small>Próxima fatura (${lab(k1.ym)})</small><b>${brl(k1.cartao)}</b><small class="sub">programado: ${brl(k1.comprometido)}${k1.g.variaveis?` + estimativas ${brl(k1.g.variaveis)}`:''}</small></div>
     <div class="card c-warn"><small>Parcelas futuras (${C.length-1} meses)</small><b>${brl(parcRest)}</b><small class="sub">até ${lab(fim.ym)}</small></div>
     <div class="card ${avg>=0?'c-pos':'c-neg'}"><small>Sobra média mensal</small><b class="${cls(avg)}">${brl(avg)}</b><small class="sub">${k0.renda?Math.round(avg/k0.renda*100):0}% da renda poupada/mês</small></div>
     <div class="card ${fim.saldo>=0?'c-pos':'c-neg'}"><small>Saldo projetado em ${lab(fim.ym)}</small><b class="${cls(fim.saldo)}">${brl(fim.saldo)}</b><small class="sub">acumulado em conta</small></div>
-    <div class="card"><small>Divisão da fatura (${lab(base)})</small><b style="font-size:16px">Cristian: ${brl(sp.payC)}</b><small class="sub"><b>Pedro: ${brl(sp.payP)}</b> (Conjunto ${S.settings.pctCristian}%/${100-S.settings.pctCristian}%)</small></div>
+    <div class="card"><small>Fatura ${lab(base)}: Individual vs Conjunto</small><b style="font-size:15px">Cristian: ${brl(sp.payC)} · Pedro: ${brl(sp.payP)}</b><small class="sub">Indiv. C: ${brl(sp.Cristian)} · Indiv. P: ${brl(sp.Pedro)} · Conj. (50/50): ${brl(sp.Conjunto)}</small></div>
   </div>
   <div class="panel"><h2>Série temporal completa (${lab(R[0].ym)} a ${lab(R[R.length-1].ym)})</h2>
-  <div class="note">Meses até ${lab(addM(base,-1))}: faturas reais já importadas. A partir de ${lab(base)}: projeção até ${lab(fim.ym)}. Clique em uma barra para abrir o mês.</div>
+  <div class="note">Meses até ${lab(addM(base,-1))}: faturas reais fechadas. Em ${lab(base)}: fatura atual lançada. A partir de ${lab(addM(base,1))}: apenas despesas já programadas (parcelas, fixas e assinaturas) + estimativas que você lançar. Clique em uma barra para abrir o mês.</div>
   <canvas id="cg" height="110"></canvas></div>
-  <div class="panel"><h2>Resumo por ano</h2><div class="tw"><table><tr><th>Ano</th><th>Renda</th><th>Cartão</th><th>Fora do cartão</th><th>Total despesas</th><th>Sobra/falta</th></tr>
-  ${yrs.map(y=>{const rs=R.filter(r=>r.ym.startsWith(y));return `<tr><td>${y}</td><td>${num(sum(rs,'renda'))}</td><td>${num(sum(rs,'cartao'))}</td><td>${num(sum(rs,'fora'))}</td><td><b>${num(sum(rs,'total'))}</b></td><td class="${cls(sum(rs,'sobra'))}">${num(sum(rs,'sobra'))}</td></tr>`}).join('')}</table></div></div>
-  <div class="panel"><h2>Todos os meses</h2><div class="tw"><table><tr><th>Mês</th><th></th><th>Renda</th><th>Parcelas</th><th>Fixas</th><th>Assinaturas</th><th>Variáveis</th><th>Cartão</th><th>Fora do cartão</th><th>Total</th><th>Sobra/falta</th><th>Saldo</th></tr>
-  ${R.map(r=>`<tr class="${r.ym===base?'tot':''}"><td><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a></td><td><small>${r.k<0?'real':r.k===0?'fatura atual':'projeção'}</small></td><td>${num(r.renda)}</td><td>${num(r.g.parcelas)}</td><td>${num(r.g.fixas)}</td><td>${num(r.g.assinaturas)}</td><td>${num(r.g.variaveis)}</td><td><b>${num(r.cartao)}</b></td><td>${num(r.fora)}</td><td><b>${num(r.total)}</b></td><td class="${cls(r.sobra)}">${num(r.sobra)}</td><td class="${cls(r.saldo)}">${r.saldo==null?'':num(r.saldo)}</td></tr>`).join('')}</table></div>
+  <div class="panel"><h2>Resumo por ano</h2><div class="tw"><table><tr><th>Ano</th><th>Renda</th><th>Indiv. Cristian</th><th>Indiv. Pedro</th><th>Conjuntas (100%)</th><th>50% Conjunto (cada)</th><th>Cartão</th><th>Fora do cartão</th><th>Total despesas</th><th>Sobra/falta</th></tr>
+  ${yrs.map(y=>{const rs=R.filter(r=>r.ym.startsWith(y)),iC=rs.reduce((a,r)=>a+r.byQ.Cristian,0),iP=rs.reduce((a,r)=>a+r.byQ.Pedro,0),cj=rs.reduce((a,r)=>a+r.byQ.Conjunto,0);return `<tr><td>${y}</td><td>${num(sum(rs,'renda'))}</td><td>${num(iC)}</td><td>${num(iP)}</td><td>${num(cj)}</td><td>${num(cj/2)}</td><td>${num(sum(rs,'cartao'))}</td><td>${num(sum(rs,'fora'))}</td><td><b>${num(sum(rs,'total'))}</b></td><td class="${cls(sum(rs,'sobra'))}">${num(sum(rs,'sobra'))}</td></tr>`}).join('')}</table></div></div>
+  <div class="panel"><h2>Todos os meses (Separado: Individuais vs Conjuntas 50/50)</h2><div class="tw"><table><tr><th>Mês</th><th></th><th>Renda</th><th>Indiv. Cristian</th><th>Indiv. Pedro</th><th>Conjuntas (Total)</th><th>50% Conj. (cada)</th><th>Parcelas</th><th>Fixas</th><th>Assinaturas</th><th>Var. / Estim.</th><th>Cartão</th><th>Fora do cartão</th><th>Total</th><th>Sobra/falta</th><th>Saldo</th></tr>
+  ${R.map(r=>`<tr class="${r.ym===base?'tot':''}"><td><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a></td><td><small>${r.k<0?'real':r.k===0?'fatura atual':'projeção'}</small></td><td>${num(r.renda)}</td><td>${num(r.byQ.Cristian)}</td><td>${num(r.byQ.Pedro)}</td><td>${num(r.byQ.Conjunto)}</td><td>${num(r.byQ.Conjunto/2)}</td><td>${num(r.g.parcelas)}</td><td>${num(r.g.fixas)}</td><td>${num(r.g.assinaturas)}</td><td>${num(r.g.variaveis)}</td><td><b>${num(r.cartao)}</b></td><td>${num(r.fora)}</td><td><b>${num(r.total)}</b></td><td class="${cls(r.sobra)}">${num(r.sobra)}</td><td class="${cls(r.saldo)}">${r.saldo==null?'':num(r.saldo)}</td></tr>`).join('')}</table></div>
   <div class="bar" style="margin-top:12px"><button class="b g" data-act="export-xlsx">Exportar projeção (xlsx)</button></div></div>`;
 }
 function drawGeral(){
@@ -244,7 +295,11 @@ function monthItems(ym,withPlans=S.settings.includePlans){
   }else{
     const k=diffM(base,ym);
     S.tx.forEach(x=>{const a=txAmount(x,k);if(a)items.push({desc:x.desc,quem:x.quem,tipo:x.tipo,cat:x.cat,valor:a,sub:x.tot?(x.cur+k)+'/'+x.tot:''})});
-    PEOPLE.forEach(q=>{const v=varAt(q,k);if(v)items.push({desc:'Variáveis (estimativa) – '+q,quem:q,tipo:'variavel',cat:'Estimativa',valor:v,sub:''})});
+    if(S.settings.includeVar){
+      (S.settings.varItems||[]).filter(v=>vItemActive(v,ym)).forEach(v=>{
+        items.push({desc:`📌 ${v.nome} (estimativa)`,quem:v.quem,tipo:'variavel',cat:v.cat||'Estimativa',valor:v.valor,sub:'estimado'});
+      });
+    }
   }
   if(withPlans&&ym>=base){
     S.extras.compras.forEach(c=>{const np=Math.max(1,c.np||1),d=diffM(c.mes,ym);if(d>=0&&d<np)items.push({desc:`📋 ${c.nome} (Plano)`,quem:c.quem,tipo:'parcelada',cat:'Planejado',valor:c.valor/np,sub:`${d+1}/${np}`})});
@@ -253,65 +308,80 @@ function monthItems(ym,withPlans=S.settings.includePlans){
 }
 function rMes(){
   const base=S.settings.base,Ms=allMonths();if(!MS||!Ms.includes(MS))MS=base;
-  const ym=MS,rawItems=monthItems(ym),p=S.settings.pctCristian/100;
+  const ym=MS,rawItems=monthItems(ym);
   const sp={Cristian:0,Pedro:0,Conjunto:0};rawItems.forEach(i=>sp[i.quem]+=i.valor);
-  const payC=sp.Cristian+sp.Conjunto*p,payP=sp.Pedro+sp.Conjunto*(1-p);
+  const payC=sp.Cristian+sp.Conjunto*0.5,payP=sp.Pedro+sp.Conjunto*0.5;
   const items=rawItems.map(i=>({...i,valor:i.valor*weight(i.quem)})).filter(i=>i.valor>0).sort((a,b)=>b.valor-a.valor);
   const cartao=items.reduce((a,i)=>a+i.valor,0);
-  const offAll=S.off.filter(o=>offActive(o,ym)),offs=q=>offAll.filter(o=>o.kind!=='receita').reduce((a,o)=>a+offV(o,ym)*(q==='C'?(o.quem==='Cristian'?1:o.quem==='Conjunto'?p:0):(o.quem==='Pedro'?1:o.quem==='Conjunto'?1-p:0)),0);
+  const offAll=S.off.filter(o=>offActive(o,ym)),offDespAll=offAll.filter(o=>o.kind!=='receita'),offRecAll=offAll.filter(o=>o.kind==='receita');
+  const recC=offRecAll.filter(o=>o.quem==='Cristian').reduce((a,o)=>a+offV(o,ym),0)+offRecAll.filter(o=>o.quem==='Conjunto').reduce((a,o)=>a+offV(o,ym)*0.5,0);
+  const recP=offRecAll.filter(o=>o.quem==='Pedro').reduce((a,o)=>a+offV(o,ym),0)+offRecAll.filter(o=>o.quem==='Conjunto').reduce((a,o)=>a+offV(o,ym)*0.5,0);
+  const offIndC=offDespAll.filter(o=>o.quem==='Cristian').reduce((a,o)=>a+offV(o,ym),0);
+  const offIndP=offDespAll.filter(o=>o.quem==='Pedro').reduce((a,o)=>a+offV(o,ym),0);
+  const offConj=offDespAll.filter(o=>o.quem==='Conjunto').reduce((a,o)=>a+offV(o,ym),0);
+  const offsC=offIndC+offConj*0.5,offsP=offIndP+offConj*0.5;
+  const totIndC=sp.Cristian+offIndC,totIndP=sp.Pedro+offIndP,totConj=sp.Conjunto+offConj,meioConj=totConj*0.5;
   const off=offAll.filter(o=>weight(o.quem)>0).sort((a,b)=>(a.kind==='receita'?0:1)-(b.kind==='receita'?0:1)||(a.venc||99)-(b.venc||99));
   const offDesp=off.filter(o=>o.kind!=='receita'),nPaid=offDesp.filter(o=>isPaid(ym,o.id)).length;
   const renda=off.filter(o=>o.kind==='receita').reduce((a,o)=>a+offV(o,ym)*weight(o.quem),0),fora=offDesp.reduce((a,o)=>a+offV(o,ym)*weight(o.quem),0);
   const cat={};items.forEach(i=>cat[i.cat]=(cat[i.cat]||0)+i.valor);
   const pend=S.tx.filter(x=>x.rev&&x.fatura===ym).length,i=Ms.indexOf(ym);
-  const status=ym<base?'fatura real':ym===base?'fatura atual (importada)':'projeção';
+  const status=ym<base?'fatura real':ym===base?'fatura atual (lançada)':'projeção programada';
   const vLab={casal:'casal',cristian:'Cristian',pedro:'Pedro',conjunto:'Conjunto'}[view];
-  const repasseP=payP+offs('P'),fatOk=isPaid(ym,'fatura'),acOk=isPaid(ym,'acerto'),sobraM=renda-cartao-fora;
+  const totC=payC+offsC,totP=payP+offsP,fatOk=isPaid(ym,'fatura'),acOk=isPaid(ym,'acerto'),sobraM=renda-cartao-fora;
   return `<div class="panel"><div class="bar"><button class="b g" data-mes="${Ms[Math.max(0,i-1)]}">◀</button>
   <select id="msel">${Ms.map(m=>`<option value="${m}" ${m===ym?'selected':''}>${lab(m)}</option>`).join('')}</select>
   <button class="b g" data-mes="${Ms[Math.min(Ms.length-1,i+1)]}">▶</button><b style="margin-left:10px">${lab(ym)} – ${status}</b></div>
-  <div class="bar">${pctBox(ym)}</div>
+  <div class="bar">${pctBox()}</div>
   ${pend?`<div class="warn">${pend} lançamentos desta fatura ainda não validados e fora dos números abaixo.</div>`:''}
   <div class="cards">
-    <div class="card"><small>Renda (${vLab})</small><b>${brl(renda)}</b><small class="sub">comprometido: ${renda?Math.round((cartao+fora)/renda*100):0}%</small></div>
-    <div class="card"><small>Cartão (${vLab})</small><b>${brl(cartao)}</b><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-top:4px"><input type="checkbox" data-paid="fatura" data-ym="${ym}" ${fatOk?'checked':''}><span class="${fatOk?'pos':''}">${fatOk?'Fatura paga ✓':'Fatura em aberto'}</span></label></div>
-    <div class="card"><small>Fora do cartão (${vLab})</small><b>${brl(fora)}</b><small class="sub">${offDesp.length?`${nPaid}/${offDesp.length} contas pagas`:'Sem contas'}</small></div>
-    <div class="card ${sobraM>=0?'c-pos':'c-neg'}"><small>Sobra/falta (${vLab})</small><b class="${cls(sobraM)}">${brl(sobraM)}</b><small class="sub">${renda?Math.round(sobraM/renda*100):0}% da renda</small></div>
-    <div class="card"><small>Parte do Cristian (total)</small><b>${brl(payC+offs('C'))}</b><small class="sub">Cartão ${brl(payC)} + Fora ${brl(offs('C'))}</small></div>
-    <div class="card" style="border-top:3px solid #d9480f"><small>Pedro repassa p/ Cristian</small><b>${brl(repasseP)}</b><small class="sub">Cartão ${brl(payP)} + Fora ${brl(offs('P'))}</small><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin-top:4px"><input type="checkbox" data-paid="acerto" data-ym="${ym}" ${acOk?'checked':''}><span class="${acOk?'pos':''}">${acOk?'Repasse recebido ✓':'Repasse pendente'}</span></label></div>
+    <div class="card"><small>Renda (${vLab})</small><b>${brl(renda)}</b><small class="sub">Cristian: ${brl(recC)} · Pedro: ${brl(recP)}</small></div>
+    <div class="card"><small>Desp. Individuais Cristian</small><b>${brl(totIndC)}</b><small class="sub">Cartão: ${brl(sp.Cristian)}${offIndC?` · Fora: ${brl(offIndC)}`:''}</small></div>
+    <div class="card"><small>Desp. Individuais Pedro</small><b>${brl(totIndP)}</b><small class="sub">Cartão (c/ QuintoAndar): ${brl(sp.Pedro)}${offIndP?` · Fora: ${brl(offIndP)}`:''}</small></div>
+    <div class="card c-warn"><small>Desp. Conjuntas (Total 100%)</small><b>${brl(totConj)}</b><small class="sub">Cartão: ${brl(sp.Conjunto)} + Aluguel/Carro: ${brl(offConj)} → <b>${brl(meioConj)} p/ cada (50/50)</b></small></div>
+    <div class="card"><small>Total Cristian (Indiv. + 50% Conj.)</small><b>${brl(totC)}</b><small class="sub">Indiv. ${brl(totIndC)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recC-totC)}">${brl(recC-totC)}</b></small></div>
+    <div class="card" style="border-top:3px solid #d9480f"><small>Total Pedro (Indiv. + 50% Conj.)</small><b>${brl(totP)}</b><small class="sub">Indiv. ${brl(totIndP)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recP-totP)}">${brl(recP-totP)}</b></small><div style="display:flex;gap:10px;margin-top:4px"><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="fatura" data-ym="${ym}" ${fatOk?'checked':''}><span class="${fatOk?'pos':''}">${fatOk?'Fatura paga ✓':'Fatura aberta'}</span></label><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="acerto" data-ym="${ym}" ${acOk?'checked':''}><span class="${acOk?'pos':''}">${acOk?'Acerto ok ✓':'Acerto pend.'}</span></label></div></div>
   </div></div>
   <div class="row"><div class="panel" style="flex:2;min-width:420px"><h2>Cartão no mês (${vLab})</h2><div class="tw"><table><tr><th class="l">Descrição</th><th class="l">Quem</th><th class="l">Tipo</th><th class="l">Categoria</th><th>Parcela</th><th>Valor</th></tr>
-  ${items.map(x=>`<tr><td class="l">${esc(x.desc.slice(0,44))}</td><td class="l"><span class="tag t-${x.quem}">${x.quem}</span></td><td class="l">${TIPOS[x.tipo]}</td><td class="l">${esc(x.cat)}</td><td>${x.sub}</td><td>${num(x.valor)}</td></tr>`).join('')||'<tr><td class="l" colspan="6">Sem lançamentos validados.</td></tr>'}
+  ${items.map(x=>`<tr><td class="l">${esc(x.desc.slice(0,44))}</td><td class="l"><span class="tag t-${x.quem}">${x.quem}${x.quem==='Conjunto'&&view==='casal'?' (50/50)':''}</span></td><td class="l">${TIPOS[x.tipo]}</td><td class="l">${esc(x.cat)}</td><td>${x.sub}</td><td>${num(x.valor)}</td></tr>`).join('')||'<tr><td class="l" colspan="6">Sem lançamentos validados.</td></tr>'}
   <tr class="tot"><td class="l">Total</td><td></td><td></td><td></td><td></td><td>${num(cartao)}</td></tr></table></div></div>
   <div class="panel" style="flex:1;min-width:320px"><h2>Por categoria (${vLab})</h2><div class="tw"><table>${Object.entries(cat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${num(v)}</td></tr>`).join('')}</table></div>
-  <h2 style="margin-top:14px">Fora do cartão (${vLab}) <span class="note">· ${nPaid}/${offDesp.length} pagas</span></h2><div class="tw"><table><tr><th class="l">Pago</th><th class="l">Item</th><th>Venc.</th><th>Valor</th></tr>${off.map(o=>{const ok=isPaid(ym,o.id);return `<tr style="${ok?'opacity:.65':''}"><td class="l">${o.kind==='receita'?'<span class="pos">✓</span>':`<input type="checkbox" data-paid="${o.id}" data-ym="${ym}" ${ok?'checked':''}>`}</td><td class="l">${esc(o.nome)} <small>(${o.quem})</small></td><td>${o.venc?'dia '+o.venc:'–'}</td><td class="${o.kind==='receita'?'pos':'neg'}">${o.kind==='receita'?'+':'-'}${num(offV(o,ym)*weight(o.quem))}</td></tr>`}).join('')}</table></div></div></div>`;
+  <h2 style="margin-top:14px">Fora do cartão (${vLab}) <span class="note">· ${nPaid}/${offDesp.length} pagas</span></h2><div class="tw"><table><tr><th class="l">Pago</th><th class="l">Item</th><th>Venc.</th><th>Valor</th></tr>${off.map(o=>{const ok=isPaid(ym,o.id);return `<tr style="${ok?'opacity:.65':''}"><td class="l">${o.kind==='receita'?'<span class="pos">✓</span>':`<input type="checkbox" data-paid="${o.id}" data-ym="${ym}" ${ok?'checked':''}>`}</td><td class="l">${esc(o.nome)} <small>(${o.quem}${o.quem==='Conjunto'?' · 50/50':''})</small></td><td>${o.venc?'dia '+o.venc:'–'}</td><td class="${o.kind==='receita'?'pos':'neg'}">${o.kind==='receita'?'+':'-'}${num(offV(o,ym)*weight(o.quem))}</td></tr>`}).join('')}</table></div></div></div>`;
 }
 
 function flow(withPlans=S.settings.includePlans){
-  const st=S.settings,base=st.base,p=st.pctCristian/100,n=Math.max(1,diffM(base,endMonth())),r=(st.fgtsRate||0)/100,E=S.extras,rr=(E.reserva?.rend||0)/100;
+  const st=S.settings,base=st.base,n=Math.max(1,diffM(base,endMonth())),r=(st.fgtsRate||0)/100,E=S.extras,rr=(E.reserva?.rend||0)/100;
   let saldo=(st.saldoIni.Cristian||0)+(st.saldoIni.Pedro||0),res=E.reserva?.saldo||0;
   const inv=(E.inv||[]).map(i=>i.saldo||0),fg={Cristian:st.fgts.Cristian.ini,Pedro:st.fgts.Pedro.ini};
   return months(n).map((ym,k)=>{
     const inc={Cristian:0,Pedro:0},card={Cristian:0,Pedro:0},offP={Cristian:0,Pedro:0},offc={};
-    const sh=q=>({Cristian:{Cristian:1,Pedro:0},Pedro:{Cristian:0,Pedro:1},Conjunto:{Cristian:p,Pedro:1-p}}[q]);
-    S.off.forEach(o=>{if(!offActive(o,ym))return;const w=sh(o.quem);
-      ['Cristian','Pedro'].forEach(q=>{const v=offV(o,ym)*w[q];o.kind==='receita'?inc[q]+=v:offP[q]+=v});
-      if(o.kind!=='receita'){const c=o.cat||'Outros';offc[c]=(offc[c]||0)+offV(o,ym)}});
-    monthItems(ym,withPlans).forEach(i=>{const w=sh(i.quem);card.Cristian+=i.valor*w.Cristian;card.Pedro+=i.valor*w.Pedro});
+    const ind={Cristian:0,Pedro:0};let conj=0;
+    const sh=q=>({Cristian:{Cristian:1,Pedro:0},Pedro:{Cristian:0,Pedro:1},Conjunto:{Cristian:0.5,Pedro:0.5}}[q]);
+    S.off.forEach(o=>{if(!offActive(o,ym))return;const raw=offV(o,ym),w=sh(o.quem);
+      ['Cristian','Pedro'].forEach(q=>{const v=raw*w[q];o.kind==='receita'?inc[q]+=v:offP[q]+=v});
+      if(o.kind!=='receita'){
+        if(o.quem==='Conjunto')conj+=raw;else ind[o.quem]+=raw;
+        const c=o.cat||'Outros';offc[c]=(offc[c]||0)+raw;
+      }});
+    monthItems(ym,withPlans).forEach(i=>{
+      const w=sh(i.quem);card.Cristian+=i.valor*w.Cristian;card.Pedro+=i.valor*w.Pedro;
+      if(i.quem==='Conjunto')conj+=i.valor;else ind[i.quem]+=i.valor;
+    });
     ['Cristian','Pedro'].forEach(q=>fg[q]=fg[q]*(1+r)+st.fgts[q].dep);
     let invT=0;
     if(withPlans){
       const inRes=!(E.reserva.meta&&res>=E.reserva.meta)?(E.reserva.aporte||0):0;
       res=res*(1+rr)+inRes;
-      if(inRes){const w=sh('Conjunto');offP.Cristian+=inRes*w.Cristian;offP.Pedro+=inRes*w.Pedro;offc['Planos (aportes)']=(offc['Planos (aportes)']||0)+inRes}
+      if(inRes){conj+=inRes;offP.Cristian+=inRes*0.5;offP.Pedro+=inRes*0.5;offc['Planos (aportes)']=(offc['Planos (aportes)']||0)+inRes}
       E.inv.forEach((i,j)=>{const on=i.inicio<=ym&&(!i.fim||ym<=i.fim),ap=on?(i.valor||0):0;inv[j]=inv[j]*(1+(i.rend||0)/100)+ap;
-        if(ap){const w=sh(i.quem);offP.Cristian+=ap*w.Cristian;offP.Pedro+=ap*w.Pedro;offc['Planos (aportes)']=(offc['Planos (aportes)']||0)+ap}});
+        if(ap){const w=sh(i.quem);offP.Cristian+=ap*w.Cristian;offP.Pedro+=ap*w.Pedro;if(i.quem==='Conjunto')conj+=ap;else ind[i.quem]+=ap;offc['Planos (aportes)']=(offc['Planos (aportes)']||0)+ap}});
       invT=inv.reduce((a,v)=>a+v,0);
       E.saques.forEach(x=>{if(x.mes===ym){const v=Math.min(x.valor,fg[x.quem]||0);fg[x.quem]-=v;if(x.destino==='caixa')inc[x.quem]+=v}});
     }
+    const conjMeio=conj*0.5,totC=ind.Cristian+conjMeio,totP=ind.Pedro+conjMeio;
     const renda=inc.Cristian+inc.Pedro,cartao=card.Cristian+card.Pedro,fora=offP.Cristian+offP.Pedro,sobra=renda-cartao-fora;saldo+=sobra;
     const fgT=fg.Cristian+fg.Pedro,patr=saldo+fgT+(withPlans?res+invT:0);
-    return {ym,k,inc,card,offP,offc,renda,cartao,fora,sobra,sobraC:inc.Cristian-card.Cristian-offP.Cristian,sobraP:inc.Pedro-card.Pedro-offP.Pedro,saldo,fg:{...fg},fgT,patr};
+    return {ym,k,inc,card,offP,ind,conj,conjMeio,totC,totP,offc,renda,cartao,fora,sobra,sobraC:inc.Cristian-totC,sobraP:inc.Pedro-totP,saldo,fg:{...fg},fgT,patr};
   });
 }
 function rFluxo(){
@@ -323,12 +393,12 @@ function rFluxo(){
     ${S.settings.includePlans?`<span class="note" style="color:var(--accent);font-weight:600">📋 Refletindo itens da aba Planos</span>`:''}
   </div>
   <div class="cards">
-    <div class="card"><small>Renda Cristian (${lab(f0.ym)})</small><b>${brl(f0.inc.Cristian)}</b><small class="sub">sobra no mês: ${brl(f0.sobraC)}</small></div>
-    <div class="card"><small>Renda Pedro (${lab(f0.ym)})</small><b>${brl(f0.inc.Pedro)}</b><small class="sub">sobra no mês: ${brl(f0.sobraP)}</small></div>
+    <div class="card"><small>Cristian em ${lab(f0.ym)}</small><b>Renda ${brl(f0.inc.Cristian)}</b><small class="sub">Indiv. ${brl(f0.ind.Cristian)} + 50% Conj. ${brl(f0.conjMeio)} · Sobra: <b class="${cls(f0.sobraC)}">${brl(f0.sobraC)}</b></small></div>
+    <div class="card"><small>Pedro em ${lab(f0.ym)}</small><b>Renda ${brl(f0.inc.Pedro)}</b><small class="sub">Indiv. ${brl(f0.ind.Pedro)} + 50% Conj. ${brl(f0.conjMeio)} · Sobra: <b class="${cls(f0.sobraP)}">${brl(f0.sobraP)}</b></small></div>
+    <div class="card c-warn"><small>Desp. Conjuntas (${lab(f0.ym)})</small><b>${brl(f0.conj)}</b><small class="sub">50% para cada: <b>${brl(f0.conjMeio)}</b></small></div>
     <div class="card ${fl.saldo>=0?'c-pos':'c-neg'}"><small>Saldo em conta (${lab(fl.ym)})</small><b class="${cls(fl.saldo)}">${brl(fl.saldo)}</b><small class="sub">${dSaldo>=0?'+':''}${brl(dSaldo)} no período</small></div>
-    <div class="card"><small>FGTS Cristian (${lab(fl.ym)})</small><b>${brl(fl.fg.Cristian)}</b><small class="sub">atual: ${brl(S.settings.fgts.Cristian.ini)} (+${brl(S.settings.fgts.Cristian.dep)}/mês)</small></div>
-    <div class="card"><small>FGTS Pedro (${lab(fl.ym)})</small><b>${brl(fl.fg.Pedro)}</b><small class="sub">atual: ${brl(S.settings.fgts.Pedro.ini)} (+${brl(S.settings.fgts.Pedro.dep)}/mês)</small></div>
-    <div class="card c-pos"><small>Patrimônio líquido (${lab(fl.ym)})</small><b>${brl(fl.patr)}</b><small class="sub">FGTS total: ${brl(fl.fgT)} (${dFg>=0?'+':''}${brl(dFg)})</small></div>
+    <div class="card"><small>FGTS (${lab(fl.ym)})</small><b>${brl(fl.fgT)}</b><small class="sub">Cristian: ${brl(fl.fg.Cristian)} · Pedro: ${brl(fl.fg.Pedro)}</small></div>
+    <div class="card c-pos"><small>Patrimônio líquido (${lab(fl.ym)})</small><b>${brl(fl.patr)}</b><small class="sub">Conta + FGTS (${dFg>=0?'+':''}${brl(dFg)})</small></div>
   </div>
   <div class="panel"><h2>Saldo e FGTS</h2><div class="bar">
    ${['Cristian','Pedro'].map(q=>`<label class="note">Saldo inicial ${q} <input type="number" step="0.01" data-si="${q}" value="${S.settings.saldoIni[q]||0}"></label>`).join('')}</div>
@@ -337,9 +407,9 @@ function rFluxo(){
   <div class="note">Valem para todos os meses. FGTS = saldo atual + depósito mensal, com rendimento mensal.</div></div>
   <div class="row"><div class="panel"><h2>Entradas por pessoa x saídas</h2><canvas id="cf1"></canvas></div>
   <div class="panel"><h2>Saldo em conta e FGTS acumulado</h2><canvas id="cf2"></canvas></div></div>
-  <div class="panel"><h2>Fluxo mensal da família (${lab(f0.ym)} a ${lab(fl.ym)})</h2><div class="tw"><table><tr><th>Mês</th><th>Renda Cristian</th><th>Renda Pedro</th><th>Renda total</th><th>Cartão</th><th>Fora do cartão</th><th>Sobra</th><th>Sobra Cristian</th><th>Sobra Pedro</th><th>Saldo em conta</th><th>FGTS Cristian</th><th>FGTS Pedro</th><th>FGTS total</th><th>Patrimônio</th></tr>
-  ${R.map(r=>`<tr><td><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a></td><td>${num(r.inc.Cristian)}</td><td>${num(r.inc.Pedro)}</td><td><b>${num(r.renda)}</b></td><td>${num(r.cartao)}</td><td>${num(r.fora)}</td><td class="${cls(r.sobra)}"><b>${num(r.sobra)}</b></td><td class="${cls(r.sobraC)}">${num(r.sobraC)}</td><td class="${cls(r.sobraP)}">${num(r.sobraP)}</td><td class="${cls(r.saldo)}">${num(r.saldo)}</td><td>${num(r.fg.Cristian)}</td><td>${num(r.fg.Pedro)}</td><td>${num(r.fgT)}</td><td><b>${num(r.patr)}</b></td></tr>`).join('')}</table></div>
-  <div class="note">Parte do Conjunto dividida pelo percentual de Premissas. Saldo em conta = saldo inicial + sobras acumuladas. FGTS = saldo atual + depósito mensal, com rendimento mensal.</div></div>
+  <div class="panel"><h2>Fluxo mensal da família (${lab(f0.ym)} a ${lab(fl.ym)}) — Individuais vs Conjuntas (50/50)</h2><div class="tw"><table><tr><th>Mês</th><th>Renda Cristian</th><th>Renda Pedro</th><th>Renda total</th><th>Indiv. Cristian</th><th>Indiv. Pedro</th><th>Conjuntas (Total)</th><th>50% Conj. (cada)</th><th>Total Cristian</th><th>Total Pedro</th><th>Sobra Cristian</th><th>Sobra Pedro</th><th>Sobra Casal</th><th>Saldo em conta</th><th>FGTS Cristian</th><th>FGTS Pedro</th><th>Patrimônio</th></tr>
+  ${R.map(r=>`<tr><td><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a></td><td>${num(r.inc.Cristian)}</td><td>${num(r.inc.Pedro)}</td><td><b>${num(r.renda)}</b></td><td>${num(r.ind.Cristian)}</td><td>${num(r.ind.Pedro)}</td><td>${num(r.conj)}</td><td>${num(r.conjMeio)}</td><td><b>${num(r.totC)}</b></td><td><b>${num(r.totP)}</b></td><td class="${cls(r.sobraC)}">${num(r.sobraC)}</td><td class="${cls(r.sobraP)}">${num(r.sobraP)}</td><td class="${cls(r.sobra)}"><b>${num(r.sobra)}</b></td><td class="${cls(r.saldo)}">${num(r.saldo)}</td><td>${num(r.fg.Cristian)}</td><td>${num(r.fg.Pedro)}</td><td><b>${num(r.patr)}</b></td></tr>`).join('')}</table></div>
+  <div class="note">Despesas individuais ficam 100% na conta de quem gastou (incluindo QuintoAndar no Pedro). Despesas Conjuntas (Aluguel, Carro e compras conjuntas) são sempre divididas 50/50 (meio a meio).</div></div>
   <div class="panel"><h2>Despesas fora do cartão por categoria</h2><div class="tw"><table><tr><th>Mês</th>${cats.map(c=>`<th>${esc(c)}</th>`).join('')}<th>Total</th></tr>
   ${R.map(r=>`<tr><td>${lab(r.ym)}</td>${cats.map(c=>`<td>${r.offc[c]?num(r.offc[c]):''}</td>`).join('')}<td><b>${num(r.fora)}</b></td></tr>`).join('')}</table></div></div>`;
 }
@@ -369,7 +439,7 @@ function rMetas(){
   return `<div class="bar"><b>Mês</b><select id="fmm">${Ms.map(m=>`<option value="${m}" ${m===ref?'selected':''}>${lab(m)}</option>`).join('')}</select></div>
   ${over.length?`<div class="warn">${over.length} categoria(s) acima da meta em ${lab(ref)}: ${over.map(esc).join(', ')}.</div>`:''}
   <div class="panel"><h2>Metas de gasto por categoria (mensal)</h2>
-  <div class="note">Compara o gasto do mês (cartão validado + fora do cartão) com o limite que você definir. Deixe em branco para não ter meta. Itens "Estimativa" são as variáveis projetadas.</div>
+  <div class="note">Compara o gasto do mês (cartão validado + fora do cartão) com o limite que você definir. Deixe em branco para não ter meta.</div>
   <div class="tw"><table><tr><th class="l">Categoria</th><th>Gasto no mês</th><th>Meta mensal</th><th>Uso</th><th class="l" style="width:220px"></th></tr>
   ${cats.map(c=>{const m=M[c],p=m?sp[c]/m*100:0;return `<tr><td class="l">${esc(c)}</td><td>${num(sp[c]||0)}</td><td><input type="number" step="10" data-meta="${esc(c)}" value="${m||''}" placeholder="–"></td><td class="${p>100?'neg':''}">${m?Math.round(p)+'%':''}</td><td class="l">${m?`<div style="background:var(--line);border-radius:6px;height:8px"><div style="width:${Math.min(100,p)}%;height:8px;border-radius:6px;background:${p>100?'var(--neg)':p>80?'#f08c00':'var(--accent)'}"></div></div>`:''}</td></tr>`}).join('')}</table></div></div>`;
 }
@@ -431,7 +501,7 @@ function scenario(){
   S=structuredClone(bak);
   try{
     S.off.forEach(o=>{if(o.kind==='receita')o.valor*=1+(c.rendaPct||0)/100;else if((o.cat||'')==='Moradia')o.valor*=1+(c.moradiaPct||0)/100});
-    PEOPLE.forEach(q=>S.settings.varAmt[q]*=1+(c.varPct||0)/100);
+    (S.settings.varItems||[]).forEach(v=>v.valor*=1+(c.varPct||0)/100);
     if(c.quitarId&&c.quitarMes){const o=S.off.find(x=>String(x.id)===String(c.quitarId));if(o){o.fim=addM(c.quitarMes,-1);o.np=0}}
     if(c.extra)S.off.push({id:1,nome:'Despesa extra',quem:'Conjunto',kind:'despesa',valor:c.extra,inicio:c.extraDe||S.settings.base,fim:null,cat:'Cenário',freq:'mensal'});
     R=flow();
@@ -442,7 +512,7 @@ function rCen(){
   const c=S.extras.cen,B=flow(),Sc=scenario(),b=B[B.length-1],s=Sc[Sc.length-1],Ms=allMonths();
   const avg=R=>R.reduce((a,r)=>a+r.sobra,0)/R.length;
   const dl=(v)=>`<small class="${v<0?'neg':'pos'}">${v>=0?'+':''}${brl(v)}</small>`;
-  const rows=[['Simulação de renda (%)','rendaPct'],['Moradia reajustada em (%)','moradiaPct'],['Variáveis do cartão (%)','varPct'],['Despesa extra mensal (R$)','extra']];
+  const rows=[['Simulação de renda (%)','rendaPct'],['Moradia reajustada em (%)','moradiaPct'],['Estimativas opcionais (%)','varPct'],['Despesa extra mensal (R$)','extra']];
   return `<div class="note" style="margin-bottom:12px">Simulador: compara o cenário com a base sem alterar seus dados reais.</div>
   <div class="panel"><h2>Premissas do cenário</h2><div class="grid2">
    ${rows.map(([l,f])=>`<label>${l}</label><input type="number" step="0.1" data-cen="${f}" value="${c[f]||0}">`).join('')}
@@ -465,32 +535,53 @@ function drawCen(){
 }
 
 function rCartao(){
-  const Ms=months();
+  const Ms=months(),cats=[...new Set([...OCATS,...S.tx.map(x=>x.cat)])].filter(Boolean).sort();
   const groups=['parcelas','fixas','assinaturas'];
   const sections=groups.map(g=>{
     const items=S.tx.filter(x=>GROUP[x.tipo]===g&&live(x)).map(x=>({x,vals:Ms.map((_,k)=>txAmount(x,k)*weight(x.quem))})).filter(i=>i.vals.some(v=>v));
     items.sort((a,b)=>b.vals[1]-a.vals[1]||b.vals[0]-a.vals[0]);
     const tot=Ms.map((_,k)=>items.reduce((a,i)=>a+i.vals[k],0));
     return `<tr class="sec"><td colspan="${Ms.length+3}">${GLAB[g]}</td></tr>`+
-      items.map(i=>`<tr><td class="l">${esc(i.x.desc.slice(0,42))}${i.x.tipo==='parcelada'?` <small>(${i.x.cur}/${i.x.tot})</small>`:''}</td><td class="l"><span class="tag t-${i.x.quem}">${i.x.quem}</span></td><td class="l">${i.x.fim?lab(i.x.fim):''}</td>${i.vals.map(v=>`<td>${v?num(v):''}</td>`).join('')}</tr>`).join('')+
+      items.map(i=>`<tr><td class="l">${esc(i.x.desc.slice(0,42))}${i.x.tipo==='parcelada'?` <small>(${i.x.cur}/${i.x.tot})</small>`:''}</td><td class="l"><span class="tag t-${i.x.quem}">${i.x.quem}${i.x.quem==='Conjunto'?' (50/50)':''}</span></td><td class="l">${i.x.fim?lab(i.x.fim):''}</td>${i.vals.map(v=>`<td>${v?num(v):''}</td>`).join('')}</tr>`).join('')+
       `<tr class="tot"><td class="l">Total ${GLAB[g]}</td><td></td><td></td>${tot.map(v=>`<td>${num(v)}</td>`).join('')}</tr>`;
   }).join('');
   const comp=Ms.map((_,k)=>S.tx.reduce((a,x)=>a+txAmount(x,k)*weight(x.quem),0));
-  const vr=PEOPLE.map(q=>({q,vals:Ms.map((_,k)=>varAt(q,k)*weight(q))})).filter(r=>r.vals.some(v=>v));
-  const vt=Ms.map((_,k)=>vr.reduce((a,r)=>a+r.vals[k],0));
-  const s=S.settings,varPanel=`<div class="panel"><h2>Variáveis estimadas por mês</h2><div class="bar">
-   ${PEOPLE.map(q=>`<label class="note">${q} <input type="number" step="0.01" data-v="${q}" value="${s.varAmt[q]||0}"></label>`).join('')}
-   <label class="note"><input type="checkbox" data-s="includeVar" ${s.includeVar?'checked':''}> incluir nos totais</label>
-   <button class="b g" data-act="var-avg">Média dos últimos 3 meses</button><button class="b g" data-act="var-from-tx">Usar fatura atual</button></div>
-   <div class="note">Gastos do cartão sem repetição garantida (mercado, restaurantes, combustível...). Valem para todos os meses projetados.</div></div>`;
+  const vList=S.settings.varItems||[];
+  const vRows=vList.filter(v=>v.ativo&&v.valor>0).map(v=>({v,vals:Ms.map((ym,k)=>k===0?0:(S.settings.includeVar&&vItemActive(v,ym)?v.valor*weight(v.quem):0))})).filter(r=>r.vals.some(x=>x));
+  const realVar0=PEOPLE.reduce((a,q)=>a+varAt(q,0)*weight(q),0);
+  const vt=Ms.map((_,k)=>k===0?realVar0:vRows.reduce((a,r)=>a+r.vals[k],0));
+  const s=S.settings;
+  const presets=[['Gasolina','Transporte'],['Alimentação fora','Alimentação'],['Mercado','Mercado'],['Delivery / iFood','Alimentação'],['Farmácia','Saúde'],['Lazer','Lazer']];
+  const varPanel=`<div class="panel"><div class="bar" style="justify-content:space-between">
+    <h2 style="margin:0">Estimativas de gastos futuros (opcionais – lance se quiser projetar)</h2>
+    <label class="note"><input type="checkbox" data-s="includeVar" ${s.includeVar?'checked':''}> Ativar estimativas nos meses futuros</label>
+  </div>
+  <div class="note" style="margin-bottom:8px">Por padrão, <b>não há simulação automática de variáveis</b>: os próximos meses mostram apenas o que já está programado (parcelas, despesas fixas e assinaturas). Caso queira simular um gasto futuro (como gasolina, alimentação fora etc.), adicione abaixo e escolha se é <b>Individual (Cristian / Pedro)</b> ou <b>Conjunto (50/50)</b>:</div>
+  <div class="bar">
+    ${presets.map(([n,c])=>`<button class="b g" data-act="add-vitem" data-nome="${n}" data-cat="${c}">+ ${n}</button>`).join('')}
+    <button class="b" data-act="add-vitem" data-nome="Nova estimativa" data-cat="Outros">+ Outra estimativa</button>
+  </div>
+  <datalist id="vcats">${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
+  ${vList.length?`<div class="tw"><table><tr><th class="l">Descrição da estimativa</th><th class="l">Ativo</th><th class="l">Quem (Indiv. ou 50/50)</th><th class="l">Categoria</th><th>Valor mensal (R$)</th><th class="l">Início</th><th class="l">Até (mês)</th><th></th></tr>
+  ${vList.map(v=>`<tr data-vid="${v.id}">
+    <td class="l"><input class="d" data-vf="nome" value="${esc(v.nome)}"></td>
+    <td class="l"><input type="checkbox" data-vf="ativo" ${v.ativo?'checked':''}></td>
+    <td class="l"><select data-vf="quem">${quemOpts(v.quem)}</select></td>
+    <td class="l"><input list="vcats" data-vf="cat" value="${esc(v.cat||'')}"></td>
+    <td><input type="number" step="0.01" data-vf="valor" value="${v.valor||0}"></td>
+    <td class="l"><input type="month" data-vf="inicio" value="${v.inicio||addM(s.base,1)}"></td>
+    <td class="l"><input type="month" data-vf="fim" value="${v.fim||''}"></td>
+    <td><button class="b r" data-act="del-vitem" title="Excluir estimativa">×</button></td>
+  </tr>`).join('')}</table></div>`:`<div class="note">Nenhuma estimativa manual adicionada. Somente parcelas, despesas fixas e assinaturas estão sendo projetadas.</div>`}</div>`;
   return varPanel+`<div class="panel"><h2>Cartão – visão: ${esc(document.getElementById('view').selectedOptions[0].text)}</h2>
-  <div class="note">Parcelas, despesas fixas e assinaturas são valores já assumidos. Variáveis são estimativa (Premissas). Mês fechado (${lab(Ms[0])}) mostra a fatura real.</div>
+  <div class="note">Mês atual (${lab(Ms[0])}) exibe os lançamentos já feitos na fatura. Meses seguintes mostram apenas os compromissos programados (parcelas, fixas e assinaturas) e as estimativas que você adicionar acima.</div>
   <div class="tw"><table><tr><th class="l">Item</th><th class="l">Quem</th><th class="l">Até</th>${Ms.map(m=>`<th>${lab(m)}</th>`).join('')}</tr>
   ${sections}
-  <tr class="tot"><td class="l">COMPROMETIDO NO CARTÃO</td><td></td><td></td>${comp.map(v=>`<td>${num(v)}</td>`).join('')}</tr>
-  <tr class="sec"><td colspan="${Ms.length+3}">Variáveis (estimativa; mês fechado = real)</td></tr>
-  ${vr.map(r=>`<tr><td class="l">Variáveis ${r.q}</td><td class="l"><span class="tag t-${r.q}">${r.q}</span></td><td></td>${r.vals.map(v=>`<td>${num(v)}</td>`).join('')}</tr>`).join('')}
-  <tr class="tot"><td class="l">TOTAL DO CARTÃO (com variáveis)</td><td></td><td></td>${comp.map((v,k)=>`<td>${num(v+vt[k])}</td>`).join('')}</tr>
+  <tr class="tot"><td class="l">PROGRAMADO NO CARTÃO (parcelas + fixas + assinaturas)</td><td></td><td></td>${comp.map(v=>`<td>${num(v)}</td>`).join('')}</tr>
+  <tr class="sec"><td colspan="${Ms.length+3}">Variáveis já lançadas em ${lab(Ms[0])} e Estimativas manuais (meses seguintes)</td></tr>
+  <tr><td class="l">Variáveis já lançadas na fatura (${lab(Ms[0])})</td><td class="l">–</td><td></td><td>${num(realVar0)}</td>${Ms.slice(1).map(()=>`<td></td>`).join('')}</tr>
+  ${vRows.map(r=>`<tr><td class="l">📌 ${esc(r.v.nome)} (estimativa)</td><td class="l"><span class="tag t-${r.v.quem}">${r.v.quem}${r.v.quem==='Conjunto'?' (50/50)':''}</span></td><td class="l">${r.v.fim?lab(r.v.fim):''}</td>${r.vals.map(v=>`<td>${v?num(v):''}</td>`).join('')}</tr>`).join('')}
+  <tr class="tot"><td class="l">TOTAL DO CARTÃO</td><td></td><td></td>${comp.map((v,k)=>`<td>${num(v+vt[k])}</td>`).join('')}</tr>
   </table></div></div>`;
 }
 
@@ -517,7 +608,7 @@ function rLanc(){
   const cats=[...new Set(S.tx.map(x=>x.cat))].sort();
   const rows=S.tx.filter(x=>(fsel==='all'||x.fatura===fsel)&&(!F.rev||x.rev)&&(!F.quem||x.quem===F.quem)&&(!F.tipo||x.tipo===F.tipo)&&(!F.txt||x.desc.toLowerCase().includes(F.txt.toLowerCase()))).sort((a,b)=>b.data.localeCompare(a.data)||a.id-b.id);
   const tot=rows.filter(x=>x.ativo&&x.tipo!=='ignorar').reduce((a,x)=>a+x.valor,0);
-  const byTipo={};rows.filter(x=>x.ativo&&x.tipo!=='ignorar').forEach(x=>byTipo[x.tipo]=(byTipo[x.tipo]||0)+x.valor);
+  const byQuem={Cristian:0,Pedro:0,Conjunto:0};rows.filter(x=>x.ativo&&x.tipo!=='ignorar').forEach(x=>byQuem[x.quem]=(byQuem[x.quem]||0)+x.valor);
   const allChecked=rows.length>0&&rows.every(x=>SEL.has(x.id));
   return `<div class="panel"><h2>Lançamentos da fatura</h2>
   <div class="bar">
@@ -527,7 +618,7 @@ function rLanc(){
     <label><input type="checkbox" id="frev" ${F.rev?'checked':''}> só pendentes</label>
     <select id="ftipo"><option value="">Todos os tipos</option>${opts(TIPOS,F.tipo)}</select>
     <button class="b" data-act="add-tx">+ Lançamento</button>
-    <span class="note">${rows.length} itens · total ativo ${brl(tot)} · ${Object.entries(byTipo).map(([t,v])=>TIPOS[t]+': '+brl(v)).join(' · ')}</span>
+    <span class="note">${rows.length} itens · total ${brl(tot)} · <b>Indiv. Cristian:</b> ${brl(byQuem.Cristian)} · <b>Indiv. Pedro:</b> ${brl(byQuem.Pedro)} · <b>Conjunto (50/50):</b> ${brl(byQuem.Conjunto)}</span>
   </div>
   <datalist id="cats">${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
   ${batchBar(rows,false)}
@@ -543,7 +634,7 @@ function rLanc(){
    <td class="l"><input type="checkbox" data-f="ativo" ${x.ativo?'checked':''}></td>
    <td><button class="b r" data-act="del-tx" title="Excluir">×</button></td></tr>`).join('')}
   </table></div>
-  <div class="note">Dica: selecione múltiplos itens na 1ª coluna para alterar Quem, Tipo, Categoria ou excluir em lote. Itens "Ignorar" não entram em nenhuma conta.</div></div>`;
+  <div class="note">Dica: selecione múltiplos itens na 1ª coluna para alterar Quem, Tipo, Categoria ou excluir em lote. Lançamentos "Cristian" ou "Pedro" são 100% individuais; apenas "Conjunto" é dividido 50/50.</div></div>`;
 }
 const OCATS=['Moradia','Transporte','Impostos','Saúde','Educação','Seguros','Lazer','Outros'];
 function rFora(){
@@ -554,6 +645,8 @@ function rFora(){
   const actDes=des.filter(act),paidDes=actDes.filter(o=>isPaid(ref,o.id));
   const cats=[...new Set([...OCATS,...des.map(o=>o.cat||'Outros')])].filter(c=>c!=='Renda'),tot=l=>l.filter(act).reduce((a,o)=>a+offV(o,ref),0);
   const renda=tot(rec),fora=tot(des),pagoVal=paidDes.reduce((a,o)=>a+offV(o,ref),0);
+  const conjDes=actDes.filter(o=>o.quem==='Conjunto').reduce((a,o)=>a+offV(o,ref),0);
+  const indDes=fora-conjDes;
   const row=(o,isRec)=>{const[t,bg,fg]=st(o),ok=isPaid(ref,o.id),active=act(o);return `<tr data-id="${o.id}" style="${t==='encerrado'?'opacity:.55':''}">
    <td class="l"><input class="d" data-f="nome" value="${esc(o.nome)}"></td>
    ${isRec?'':`<td class="l">${active?`<input type="checkbox" data-paid="${o.id}" data-ym="${ref}" ${ok?'checked':''} title="Marcar como pago em ${lab(ref)}">`:'–'}</td>`}
@@ -573,10 +666,11 @@ function rFora(){
   return `<div class="bar"><b>Mês de referência</b><select id="fom">${Ms.map(m=>`<option value="${m}" ${m===ref?'selected':''}>${lab(m)}</option>`).join('')}</select>
    <button class="b g" data-act="add-cat">+ Nova categoria</button></div>
   <div class="cards"><div class="card c-pos"><small>Renda no mês</small><b>${brl(renda)}</b><span class="sub">${lab(ref)}</span></div>
-   <div class="card"><small>Despesas fora do cartão</small><b>${brl(fora)}</b><span class="sub">${renda?Math.round(fora/renda*100):0}% da renda</span></div>
+   <div class="card c-warn"><small>Conjuntas Fora do Cartão (50/50)</small><b>${brl(conjDes)}</b><span class="sub">${brl(conjDes/2)} p/ Cristian · ${brl(conjDes/2)} p/ Pedro</span></div>
+   <div class="card"><small>Individuais Fora do Cartão</small><b>${brl(indDes)}</b><span class="sub">Total fora do cartão: ${brl(fora)}</span></div>
    <div class="card ${paidDes.length===actDes.length&&actDes.length?'c-pos':'c-warn'}"><small>Contas pagas (${lab(ref)})</small><b>${paidDes.length}/${actDes.length}</b><span class="sub">${brl(pagoVal)} pagos · faltam ${brl(Math.max(0,fora-pagoVal))}</span></div>
    <div class="card ${renda-fora>=0?'c-pos':'c-neg'}"><small>Sobra antes do cartão</small><b class="${cls(renda-fora)}">${brl(renda-fora)}</b><span class="sub">Disponível p/ cartão e caixa</span></div></div>
-  <div class="note">Marque "Pago" para controlar as contas quitadas em ${lab(ref)}. Informe "Venc." (dia 1–31) para ordenar por vencimento. Preencha "Parcelas" para calcular o fim automaticamente, e "Reajuste" para corrigir a cada 12 meses.</div>
+  <div class="note">Despesas marcadas como "Conjunto" (ex.: Aluguel e Carro) são divididas 50/50 entre Cristian e Pedro. Despesas com nome individual ficam 100% para a respectiva pessoa.</div>
   ${group('Rendas',rec,'Renda','receita')}
   ${cats.map(c=>({c,l:des.filter(o=>(o.cat||'Outros')===c)})).filter(g=>g.l.length||OCATS.includes(g.c)).map(g=>group(g.c,g.l,g.c,'despesa')).join('')}`;
 }
@@ -588,7 +682,7 @@ function rPrem(){
   </div>
   <div class="note">No Fluxo de caixa, Visão Geral e Visão Mensal, o horizonte padrão acompanha sempre <b>dezembro do ano seguinte ao mês base</b> (${lab(nextYearDec())}), podendo ser ajustado no seletor "Projetar até" do topo da aba.</div></div>
   <div class="panel"><h2>Atalhos de teclado</h2>
-   <div class="note">• <code>Alt + N</code>: Abrir modal de novo lançamento rápido<br>• <code>Alt + T</code>: Alternar entre modo claro e modo escuro<br>• <code>Esc</code>: Fechar modal rápido ou limpar seleção em lote</div></div>
+   <div class="note">• <code>Alt + N</code>: Abrir modal de novo lançamento rápido (Cartão, Fora do cartão ou Estimativa futura)<br>• <code>Alt + T</code>: Alternar entre modo claro e modo escuro<br>• <code>Esc</code>: Fechar modal rápido ou limpar seleção em lote</div></div>
   <div class="panel"><h2>Dados e backups</h2><div class="bar">
    <button class="b g" data-act="export-json">Exportar backup (json)</button>
    <label class="b g">Importar backup<input type="file" accept=".json" id="impj" hidden></label>
@@ -601,17 +695,7 @@ function rPrem(){
    ${snaps.map(sn=>`<tr data-snap="${sn.id}"><td class="l">${fd(sn.at)}</td><td class="l"><b>${esc(sn.motivo)}</b></td><td class="l">${esc(sn.by||'Local')}</td><td>${sn.txCount}</td><td>${sn.offCount}</td>
    <td><button class="b g" data-act="restore-snap">Restaurar</button> <button class="b r" data-act="del-snap" title="Excluir ponto">×</button></td></tr>`).join('')}</table></div>`:'<div class="note" style="margin-top:8px">Nenhum ponto de restauração salvo ainda.</div>'}</div>`;
 }
-function rendaPct(ym=S.settings.base){
-  let c=0,p=0;
-  S.off.forEach(o=>{if(o.kind==='receita'&&offActive(o,ym)){const v=offV(o,ym);if(o.quem==='Cristian')c+=v;else if(o.quem==='Pedro')p+=v;else{c+=v/2;p+=v/2}}});
-  return c+p>0?+(c/(c+p)*100).toFixed(1):50;
-}
-const pctBox=(ym=S.settings.base)=>{
-  const rp=rendaPct(ym);
-  return `<label class="note">Cristian paga <input type="number" step="0.1" data-s="pctCristian" value="${S.settings.pctCristian}" min="0" max="100" style="width:68px">% do Conjunto (Pedro ${+(100-S.settings.pctCristian).toFixed(1)}%)</label>
-  ${S.settings.pctCristian!==rp?`<button class="b g" data-act="pct-renda" data-ym="${ym}" style="padding:4px 9px;font-size:12px">Proporcional à renda (${rp}% / ${+(100-rp).toFixed(1)}%)</button>`:''}
-  ${S.settings.pctCristian!==50?`<button class="b g" data-act="pct-50" style="padding:4px 9px;font-size:12px">50 / 50</button>`:''}`;
-};
+const pctBox=()=>`<span class="note"><b>Regra de divisão:</b> Despesas individuais (Cristian ou Pedro, incl. QuintoAndar do Pedro) = <b>100% individuais</b> · Despesas Conjuntas (Aluguel, Carro e itens Conjunto) = <b>50% / 50% (meio a meio)</b></span>`;
 
 const saveRender=()=>{save();setTimeout(render,0)};
 function bind(m){
@@ -621,6 +705,13 @@ function bind(m){
     if(list===S.off&&['np','inicio'].includes(f)&&o.np)o.fim=addM(o.inicio,o.np-1);
     if(f==='tipo'&&o.tipo==='parcelada'&&!o.tot){o.cur=1;o.tot=2}
     if(list===S.tx&&!o.rev&&['tipo','quem','cat','fim'].includes(f))remember(o,f)
+    saveRender();
+  }));
+  m.querySelectorAll('tr[data-vid] [data-vf]').forEach(el=>el.addEventListener('change',()=>{
+    const id=+el.closest('tr').dataset.vid,v=(S.settings.varItems||[]).find(x=>x.id===id),f=el.dataset.vf;
+    if(!v)return;
+    v[f]=el.type==='checkbox'?el.checked:el.type==='number'?(+el.value||0):(el.value||(f==='fim'?null:''));
+    if(f==='valor'&&v.valor>0){v.ativo=true;S.settings.includeVar=true}
     saveRender();
   }));
   m.querySelectorAll('[data-sel]').forEach(el=>el.addEventListener('change',()=>{
@@ -660,7 +751,6 @@ function bind(m){
   m.querySelectorAll('[data-meta]').forEach(el=>el.addEventListener('change',()=>{const v=+el.value||0;v?S.extras.metas[el.dataset.meta]=v:delete S.extras.metas[el.dataset.meta];saveRender()}));
   m.querySelectorAll('[data-res]').forEach(el=>el.addEventListener('change',()=>{S.extras.reserva[el.dataset.res]=+el.value||0;saveRender()}));
   m.querySelectorAll('[data-cen]').forEach(el=>el.addEventListener('change',()=>{const f=el.dataset.cen;S.extras.cen[f]=el.type==='number'?(+el.value||0):el.value;saveRender()}));
-  m.querySelectorAll('[data-v]').forEach(el=>el.addEventListener('change',()=>{S.settings.varAmt[el.dataset.v]=+el.value;saveRender()}));
   m.querySelectorAll('[data-si]').forEach(el=>el.addEventListener('change',()=>{S.settings.saldoIni[el.dataset.si]=+el.value;saveRender()}));
   m.querySelectorAll('[data-act]').forEach(el=>el.addEventListener('click',()=>act(el)));
   const bindF=(id,k,ev)=>{const e=m.querySelector(id);if(e)e.addEventListener(ev,()=>{F[k]=e.value;render()})};
@@ -682,23 +772,25 @@ function bind(m){
   const ij=m.querySelector('#impj');if(ij)ij.addEventListener('change',()=>ij.files[0].text().then(t=>{saveSnap('Antes de importar backup JSON');S=mig(JSON.parse(t));save();render()}));
 }
 function act(el){
-  const a=el.dataset.act,id=+(el.closest('tr')?.dataset.id||0),snapId=+(el.closest('tr')?.dataset.snap||0);
+  const a=el.dataset.act,id=+(el.closest('tr')?.dataset.id||0),vid=+(el.closest('tr')?.dataset.vid||0),snapId=+(el.closest('tr')?.dataset.snap||0);
   if(a==='del-tx'){S.tx=S.tx.filter(x=>x.id!==id);SEL.delete(id)}
   else if(a==='del-off'){S.off=S.off.filter(x=>x.id!==id)}
   else if(a==='del-rule'){delete S.rules[el.closest('tr').dataset.rule]}
+  else if(a==='add-vitem'){
+    S.settings.varItems=S.settings.varItems||[];
+    S.settings.includeVar=true;
+    S.settings.varItems.push({id:Date.now(),ativo:true,nome:el.dataset.nome||'Nova estimativa',quem:currentUser==='Pedro'?'Pedro':currentUser==='Cristian'?'Cristian':'Conjunto',cat:el.dataset.cat||'Outros',valor:0,inicio:addM(S.settings.base,1),fim:null});
+  }
+  else if(a==='del-vitem'){S.settings.varItems=(S.settings.varItems||[]).filter(v=>v.id!==vid)}
   else if(a==='batch-cat'){const c=document.getElementById('bcat')?.value.trim();if(!c)return;S.tx.forEach(x=>{if(SEL.has(x.id)){x.cat=c;if(!x.rev)remember(x,'cat')}})}
   else if(a==='batch-ok'){S.tx.forEach(x=>{if(SEL.has(x.id)){x.rev=false;remember(x)}});SEL.clear()}
   else if(a==='batch-del'){if(!confirm(`Excluir ${SEL.size} lançamento(s) selecionado(s)?`))return;S.tx=S.tx.filter(x=>!SEL.has(x.id));SEL.clear()}
   else if(a==='batch-clear'){SEL.clear();render();return}
-  else if(a==='pct-renda'){S.settings.pctCristian=rendaPct(el.dataset.ym||S.settings.base)}
-  else if(a==='pct-50'){S.settings.pctCristian=50}
   else if(a==='add-tx'){S.tx.push({id:Date.now(),data:new Date().toISOString().slice(0,10),desc:'Novo lançamento',cur:null,tot:null,valor:0,tipo:'variavel',cat:'Sem categoria',quem:'Cristian',cartao:'',fim:null,ativo:true,fatura:S.settings.base,rev:false})}
   else if(a==='add-x'){const l=el.dataset.list,b=S.settings.base,def={inv:{nome:'Novo investimento',quem:'Conjunto',valor:0,saldo:0,rend:0.8,inicio:b,fim:null},saques:{quem:'Cristian',mes:b,valor:0,destino:'caixa',nome:'Saque FGTS'},compras:{nome:'Nova compra',quem:'Conjunto',mes:b,valor:0,np:1}}[l];S.extras[l].push({id:Date.now(),...def})}
   else if(a==='del-x'){const l=el.closest('tr').dataset.list;S.extras[l]=S.extras[l].filter(x=>x.id!==id)}
   else if(a==='add-cat'){const n=prompt('Nome da nova categoria:');if(!n)return;S.off.push({id:Date.now(),nome:'Novo item',quem:'Conjunto',kind:'despesa',valor:0,inicio:S.settings.base,fim:null,cat:n.trim(),freq:'mensal'})}
   else if(a==='add-off'){const d=el.dataset;S.off.push({id:Date.now(),nome:d.nome||'Novo item',quem:d.quem||'Conjunto',kind:d.kind||'despesa',valor:0,inicio:S.settings.base,fim:null,cat:d.cat||'',freq:d.freq||'mensal'})}
-  else if(a==='var-from-tx'){PEOPLE.forEach(q=>S.settings.varAmt[q]=+varAt(q,0).toFixed(2))}
-  else if(a==='var-avg'){varAvg()}
   else if(a==='imp-merge'){if(!confirmImport('merge'))return}
   else if(a==='imp-replace'){if(!confirmImport('replace'))return}
   else if(a==='imp-cancel'){IMP=null}
@@ -715,8 +807,8 @@ function act(el){
 function download(name,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click()}
 function exportXlsx(){
   const R=compute(),wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Mês','Renda','Parcelas','Fixas','Assinaturas','Comprometido no cartão','Variáveis (est.)','Fora do cartão','Total despesas','Sobra','Saldo'],
-   ...R.map(r=>[r.ym,r.renda,r.g.parcelas,r.g.fixas,r.g.assinaturas,r.comprometido,r.g.variaveis,r.fora,r.total,r.sobra,r.saldo].map(v=>typeof v==='number'?+v.toFixed(2):v))]),'Projeção');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Mês','Renda','Indiv. Cristian','Indiv. Pedro','Conjuntas (100%)','50% Conjunto (cada)','Parcelas','Fixas','Assinaturas','Comprometido no cartão','Estimativas opcionais','Fora do cartão','Total despesas','Sobra','Saldo'],
+   ...R.map(r=>[r.ym,r.renda,r.byQ.Cristian,r.byQ.Pedro,r.byQ.Conjunto,r.byQ.Conjunto/2,r.g.parcelas,r.g.fixas,r.g.assinaturas,r.comprometido,r.g.variaveis,r.fora,r.total,r.sobra,r.saldo].map(v=>typeof v==='number'?+v.toFixed(2):v))]),'Projeção');
   const Ms=months();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Descrição','Tipo','Quem',...Ms],
    ...S.tx.filter(x=>x.ativo&&!['variavel','ignorar'].includes(x.tipo)).map(x=>[x.desc,TIPOS[x.tipo],x.quem,...Ms.map((_,k)=>+(txAmount(x,k)*weight(x.quem)).toFixed(2))])]),'Cartão comprometido');
@@ -736,8 +828,10 @@ function learn(d,list){
   Object.entries(c).forEach(([k,m])=>{const [tipo,quem,cat,fim]=JSON.parse(Object.entries(m).sort((a,b)=>b[1]-a[1])[0][0]);d.rules[k]={tipo,quem,cat,fim,exemplo:ex[k]}});
 }
 function applyRule(x,r,forceQuem){
+  if(/quintoandar/i.test(x.desc)){x.quem='Pedro';x.cat='Moradia';x.tipo=x.tot?'parcelada':'fixa';return}
   x.tipo=x.tot?'parcelada':(r.tipo==='parcelada'?'variavel':r.tipo);
-  if(forceQuem||!x.portador)x.quem=r.quem;
+  if(forceQuem)x.quem=r.quem;
+  else if(!x.portador&&x.quem==='Conjunto'&&r.quem)x.quem=r.quem;
   x.cat=r.cat;x.fim=r.fim||null;
 }
 function remember(o,changedField){
@@ -746,13 +840,9 @@ function remember(o,changedField){
   S.tx.forEach(y=>{if(y.rev&&y!==o&&key(y.desc)===k)applyRule(y,S.rules[k],changedField==='quem')});
 }
 function split(fat){
-  const p=S.settings.pctCristian/100,s={Cristian:0,Pedro:0,Conjunto:0};
+  const s={Cristian:0,Pedro:0,Conjunto:0};
   S.tx.forEach(x=>{if(x.fatura===fat&&live(x))s[x.quem]=(s[x.quem]||0)+x.valor});
-  return {...s,total:s.Cristian+s.Pedro+s.Conjunto,payC:s.Cristian+s.Conjunto*p,payP:s.Pedro+s.Conjunto*(1-p)};
-}
-function varAvg(){
-  const fats=[...new Set(S.tx.map(x=>x.fatura))].filter(f=>f<=S.settings.base).sort().slice(-3);
-  PEOPLE.forEach(q=>S.settings.varAmt[q]=+(fats.reduce((a,f)=>a+S.tx.filter(x=>x.fatura===f&&live(x)&&x.tipo==='variavel'&&x.quem===q).reduce((b,x)=>b+x.valor,0),0)/(fats.length||1)).toFixed(2));
+  return {...s,total:s.Cristian+s.Pedro+s.Conjunto,payC:s.Cristian+s.Conjunto*0.5,payP:s.Pedro+s.Conjunto*0.5};
 }
 
 const txSig=x=>`${x.data}|${norm(x.desc)}|${(+x.valor).toFixed(2)}|${x.cur||0}/${x.tot||0}`;
@@ -784,22 +874,35 @@ function parseFatura(file){
     rows.slice(hi+1).forEach(r=>{
       const data=pDate(get(r,'data')),desc=get(r,'lancamento'),v=pVal(get(r,'valor'));
       if(!data||isNaN(v)||!desc||/pagamento/i.test(desc))return;
-      const nomeRaw=String(get(r,'nome')??get(r,'portador')??get(r,'titular')??get(r,'nome no cartao')??'').trim();
+      const nomeRaw=String(get(r,'quem')??get(r,'responsavel')??get(r,'nome')??get(r,'portador')??get(r,'titular')??get(r,'nome no cartao')??'').trim();
       const cartaoRaw=String(get(r,'numero do cartao')??get(r,'final do cartao')??get(r,'cartao')??'').trim();
       const tipoRaw=norm(get(r,'tipo de despesa')),parc=get(r,'parcelamento');
       let fTipo=TPMAP[tipoRaw]||null,fFim=null;
       const mf=tipoRaw.match(/fixa ate (\w+) de (\d{4})/);if(mf){fTipo='fixa';fFim=ym2(mf[2],MESES[mf[1]]||1)}
-      const pessoa=/pedro/i.test(nomeRaw)?'Pedro':/cristian/i.test(nomeRaw)?'Cristian':/conjunto/i.test(nomeRaw)?'Conjunto':null;
+      const vC=pVal(get(r,'cristian')),vP=pVal(get(r,'pedro')),vCj=pVal(get(r,'conjunto'));
+      let pessoa=/pedro/i.test(nomeRaw)?'Pedro':/cristian/i.test(nomeRaw)?'Cristian':/conjunto/i.test(nomeRaw)?'Conjunto':null;
+      if(!pessoa){
+        if(!isNaN(vC)&&vC>0&&(isNaN(vP)||vP===0))pessoa='Cristian';
+        else if(!isNaN(vP)&&vP>0&&(isNaN(vC)||vC===0))pessoa='Pedro';
+        else if((!isNaN(vCj)&&vCj>0)||(!isNaN(vC)&&vC>0&&!isNaN(vP)&&vP>0))pessoa='Conjunto';
+      }
       const fCat=get(r,'categoria')?capital(get(r,'categoria')):null;
       const mp=parc&&String(parc).match(/(\d+)\s*de\s*(\d+)/);
       const ru=S.rules[key(desc)]||null;
-      const x={id:0,data,desc:String(desc).replace(/\s+/g,' ').trim(),cur:mp?+mp[1]:null,tot:mp?+mp[2]:null,valor:+v.toFixed(2),
-        quem:pessoa||ru?.quem||'Conjunto',cat:fCat||ru?.cat||'Sem categoria',fim:fFim||(ru&&!fTipo?ru.fim:null)||null,
-        portador:nomeRaw,cartao:cartaoRaw,ativo:true,rev:true,sug:!!ru||!!pessoa};
+      let quem=pessoa||ru?.quem||'Cristunto';
+      if(quem==='Cristunto')quem='Conjunto';
       let t=fTipo||ru?.tipo||'variavel';
       if(mp)t='parcelada';else if(t==='parcelada')t='variavel';
-      if(/quintoandar/i.test(desc))t='ignorar';
-      x.tipo=t;tx.push(x);
+      let cat=fCat||ru?.cat||'Sem categoria';
+      if(/quintoandar/i.test(desc)){
+        quem='Pedro';
+        cat=fCat||'Moradia';
+        if(!fTipo&&!mp)t='fixa';
+      }
+      const x={id:0,data,desc:String(desc).replace(/\s+/g,' ').trim(),cur:mp?+mp[1]:null,tot:mp?+mp[2]:null,valor:+v.toFixed(2),
+        quem,cat,fim:fFim||(ru&&!fTipo?ru.fim:null)||null,
+        portador:nomeRaw,cartao:cartaoRaw,ativo:true,rev:true,sug:!!ru||!!pessoa,tipo:t};
+      tx.push(x);
     });
     if(!fatura){const mx=tx.map(x=>x.data).sort().pop();fatura=mx?mx.slice(0,7):S.settings.base}
     IMP={tx,fatura,oficial,name:file.name};markDups(IMP);tab='imp';render();
@@ -884,12 +987,12 @@ function rHist(){
   const cat={};S.tx.filter(x=>x.fatura===sel&&live(x)).forEach(x=>{const c=cat[x.cat]=cat[x.cat]||{Cristian:0,Pedro:0,Conjunto:0,t:0};c[x.quem]=(c[x.quem]||0)+x.valor;c.t+=x.valor});
   const catRows=Object.entries(cat).sort((a,b)=>b[1].t-a[1].t);
   return `<div class="panel"><h2>Histórico por fatura</h2><div class="bar">${pctBox()}</div><div class="row" style="margin-bottom:10px"><div style="flex:1;min-width:420px"><canvas id="c3"></canvas></div></div>
-  <div class="tw"><table><tr><th class="l">Fatura</th><th>Total</th><th>Cristian</th><th>Pedro</th><th>Conjunto</th><th>Cristian paga</th><th>Pedro paga</th><th>Parcelas</th><th>Fixas</th><th>Assinaturas</th><th>Variáveis</th></tr>
-  ${fats.map(f=>{const s=split(f),g=grp(f);return `<tr><td class="l">${lab(f)}</td><td><b>${num(s.total)}</b></td><td>${num(s.Cristian)}</td><td>${num(s.Pedro)}</td><td>${num(s.Conjunto)}</td><td><b>${num(s.payC)}</b></td><td><b>${num(s.payP)}</b></td><td>${num(g.parcelas)}</td><td>${num(g.fixas)}</td><td>${num(g.assinaturas)}</td><td>${num(g.variaveis)}</td></tr>`}).join('')}
-  </table></div><div class="note">"Paga" = lançamentos próprios + parte do Conjunto (${S.settings.pctCristian}% Cristian). Itens "Ignorar" ficam de fora.</div></div>
+  <div class="tw"><table><tr><th class="l">Fatura</th><th>Total</th><th>Indiv. Cristian</th><th>Indiv. Pedro</th><th>Conjuntas (100%)</th><th>50% Conj. (cada)</th><th>Cristian paga</th><th>Pedro paga</th><th>Parcelas</th><th>Fixas</th><th>Assinaturas</th><th>Variáveis</th></tr>
+  ${fats.map(f=>{const s=split(f),g=grp(f);return `<tr><td class="l">${lab(f)}</td><td><b>${num(s.total)}</b></td><td>${num(s.Cristian)}</td><td>${num(s.Pedro)}</td><td>${num(s.Conjunto)}</td><td>${num(s.Conjunto*0.5)}</td><td><b>${num(s.payC)}</b></td><td><b>${num(s.payP)}</b></td><td>${num(g.parcelas)}</td><td>${num(g.fixas)}</td><td>${num(g.assinaturas)}</td><td>${num(g.variaveis)}</td></tr>`}).join('')}
+  </table></div><div class="note">"Paga" = despesas individuais (100%) + 50% das despesas conjuntas. Itens "Ignorar" ficam de fora.</div></div>
   <div class="panel"><h2>Gastos por categoria</h2><div class="bar"><select id="fhf">${fats.map(f=>`<option value="${f}" ${f===sel?'selected':''}>${lab(f)}</option>`).join('')}</select></div>
-  <div class="tw"><table><tr><th class="l">Categoria</th><th>Cristian</th><th>Pedro</th><th>Conjunto</th><th>Total</th></tr>
-  ${catRows.map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${num(v.Cristian)}</td><td>${num(v.Pedro)}</td><td>${num(v.Conjunto)}</td><td><b>${num(v.t)}</b></td></tr>`).join('')}</table></div></div>`;
+  <div class="tw"><table><tr><th class="l">Categoria</th><th>Indiv. Cristian</th><th>Indiv. Pedro</th><th>Conjuntas (100%)</th><th>50% Conj. (cada)</th><th>Total</th></tr>
+  ${catRows.map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${num(v.Cristian)}</td><td>${num(v.Pedro)}</td><td>${num(v.Conjunto)}</td><td>${num((v.Conjunto||0)*0.5)}</td><td><b>${num(v.t)}</b></td></tr>`).join('')}</table></div></div>`;
 }
 function drawHist(){
   const fats=[...new Set(S.tx.map(x=>x.fatura))].sort(),col={Cristian:'#0e6b7c',Pedro:'#c55a11',Conjunto:'#548235'};
@@ -904,7 +1007,7 @@ document.getElementById('theme-btn')?.addEventListener('click',()=>{
   render();
 });
 window.addEventListener('keydown',e=>{
-  if(e.altKey&&e.key.toLowerCase()==='n'){e.preventDefault();openQuickAdd(tab==='fora'?'fora':'cartao')}
+  if(e.altKey&&e.key.toLowerCase()==='n'){e.preventDefault();openQuickAdd(tab==='fora'?'fora':tab==='cartao'?'estimativa':'cartao')}
   else if(e.altKey&&e.key.toLowerCase()==='t'){e.preventDefault();applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');render()}
   else if(e.key==='Escape'){
     const qm=document.getElementById('qmodal');
@@ -923,25 +1026,34 @@ function openQuickAdd(mode='cartao'){
       <div class="bar" style="margin:0">
         <button class="b ${mode==='cartao'?'':'g'}" id="qm-c" style="padding:4px 10px;font-size:12px">Cartão</button>
         <button class="b ${mode==='fora'?'':'g'}" id="qm-f" style="padding:4px 10px;font-size:12px">Fora do cartão</button>
+        <button class="b ${mode==='estimativa'?'':'g'}" id="qm-e" style="padding:4px 10px;font-size:12px">Estimativa futura</button>
       </div>
     </div>
     <datalist id="qmcats">${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
     ${mode==='cartao'?`<div class="qgrid">
       <label>Descrição</label><input id="qd" placeholder="Ex.: Mercado, iFood, Farmácia">
       <label>Valor (R$)</label><input id="qv" type="number" step="0.01" placeholder="0,00">
-      <label>Quem</label><select id="qq">${quemOpts(defQuem)}</select>
+      <label>Quem</label><select id="qq"><option value="Cristian" ${defQuem==='Cristian'?'selected':''}>Cristian (Individual 100%)</option><option value="Pedro" ${defQuem==='Pedro'?'selected':''}>Pedro (Individual 100%)</option><option value="Conjunto" ${defQuem==='Conjunto'?'selected':''}>Conjunto (50% / 50%)</option></select>
       <label>Tipo</label><select id="qt">${opts(TIPOS,'variavel')}</select>
       <label>Parcelas</label><input id="qp" type="number" min="1" max="48" value="1">
       <label>Categoria</label><input id="qcat" list="qmcats" value="Sem categoria">
       <label>Fatura</label><input id="qfat" type="month" value="${S.settings.base}">
-    </div>`:`<div class="qgrid">
+    </div>`:mode==='fora'?`<div class="qgrid">
       <label>Nome</label><input id="qd" placeholder="Ex.: Condomínio, Luz, Pix">
       <label>Valor (R$)</label><input id="qv" type="number" step="0.01" placeholder="0,00">
-      <label>Quem</label><select id="qq">${quemOpts(defQuem)}</select>
+      <label>Quem</label><select id="qq"><option value="Cristian" ${defQuem==='Cristian'?'selected':''}>Cristian (Individual 100%)</option><option value="Pedro" ${defQuem==='Pedro'?'selected':''}>Pedro (Individual 100%)</option><option value="Conjunto" ${defQuem==='Conjunto'?'selected':''}>Conjunto (50% / 50%)</option></select>
       <label>Natureza</label><select id="qkind"><option value="despesa">Despesa</option><option value="receita">Receita</option></select>
       <label>Vencimento</label><input id="qvenc" type="number" min="1" max="31" placeholder="Dia (1–31)">
       <label>Categoria</label><input id="qcat" list="qmcats" value="Moradia">
       <label>Início</label><input id="qfat" type="month" value="${S.settings.base}">
+    </div>`:`<div class="qgrid">
+      <label>Estimativa</label><input id="qd" list="qmpresets" placeholder="Ex.: Gasolina, Alimentação fora, Mercado">
+      <datalist id="qmpresets">${EST_PRESETS.map(p=>`<option value="${esc(p.nome)}">${esc(p.cat)}</option>`).join('')}</datalist>
+      <label>Valor mensal (R$)</label><input id="qv" type="number" step="10" placeholder="0,00">
+      <label>Quem</label><select id="qq"><option value="Cristian" ${defQuem==='Cristian'?'selected':''}>Cristian (Individual 100%)</option><option value="Pedro" ${defQuem==='Pedro'?'selected':''}>Pedro (Individual 100%)</option><option value="Conjunto" selected>Conjunto (50% / 50%)</option></select>
+      <label>Categoria</label><input id="qcat" list="qmcats" value="Outros">
+      <label>Início (mês &gt; base)</label><input id="qfat" type="month" value="${addM(S.settings.base,1)}">
+      <label>Até (opcional)</label><input id="qfim" type="month" value="">
     </div>`}
     <div class="bar" style="justify-content:flex-end;margin:0">
       <button class="b g" id="qm-cancel">Cancelar</button>
@@ -951,11 +1063,18 @@ function openQuickAdd(mode='cartao'){
   qm.querySelector('#qd')?.focus();
   qm.querySelector('#qm-c').onclick=()=>openQuickAdd('cartao');
   qm.querySelector('#qm-f').onclick=()=>openQuickAdd('fora');
+  qm.querySelector('#qm-e').onclick=()=>openQuickAdd('estimativa');
   qm.querySelector('#qm-cancel').onclick=()=>{qm.hidden=true};
   qm.onclick=e=>{if(e.target===qm)qm.hidden=true};
   qm.querySelector('#qd')?.addEventListener('change',e=>{
-    const r=S.rules[key(e.target.value)];
-    if(r&&mode==='cartao'){qm.querySelector('#qcat').value=r.cat||'Sem categoria';qm.querySelector('#qt').value=r.tipo||'variavel';qm.querySelector('#qq').value=r.quem||defQuem}
+    const v=e.target.value;
+    if(mode==='cartao'){
+      const r=S.rules[key(v)];
+      if(r){qm.querySelector('#qcat').value=r.cat||'Sem categoria';qm.querySelector('#qt').value=r.tipo||'variavel';qm.querySelector('#qq').value=r.quem||defQuem}
+    }else if(mode==='estimativa'){
+      const p=EST_PRESETS.find(x=>x.nome.toLowerCase()===v.trim().toLowerCase());
+      if(p){qm.querySelector('#qcat').value=p.cat;qm.querySelector('#qq').value=p.quem}
+    }
   });
   qm.querySelector('#qm-save').onclick=()=>{
     const desc=qm.querySelector('#qd').value.trim(),val=+qm.querySelector('#qv').value||0;
@@ -965,14 +1084,17 @@ function openQuickAdd(mode='cartao'){
       const np=Math.max(1,+qm.querySelector('#qp').value||1),tipo=np>1?'parcelada':qm.querySelector('#qt').value;
       const o={id:Date.now(),data:new Date().toISOString().slice(0,10),desc,cur:np>1?1:null,tot:np>1?np:null,valor:val,tipo,cat,quem,cartao:'',fim:null,ativo:true,fatura:ym,rev:false};
       S.tx.push(o);remember(o);
-    }else{
+    }else if(mode==='fora'){
       const kind=qm.querySelector('#qkind').value,venc=+qm.querySelector('#qvenc').value||null;
       S.off.push({id:Date.now(),nome:desc,quem,kind,valor:val,venc,inicio:ym,fim:null,cat:kind==='receita'?'Renda':cat,freq:'mensal'});
+    }else{
+      const fim=qm.querySelector('#qfim')?.value||null;
+      (S.settings.varItems=S.settings.varItems||[]).push({id:Date.now(),nome:desc,quem,cat,valor:val,inicio:ym,fim,ativo:true});
     }
     qm.hidden=true;save();render();
   };
 }
-document.getElementById('fab-add')?.addEventListener('click',()=>openQuickAdd(tab==='fora'?'fora':'cartao'));
+document.getElementById('fab-add')?.addEventListener('click',()=>openQuickAdd(tab==='fora'?'fora':tab==='cartao'?'estimativa':'cartao'));
 // ---- Sincronização (Supabase) ----
 const CFG=window.CONFIG||{},sb=CFG.SUPABASE_URL&&window.supabase?supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY):null;
 let timer=null,lastRemote=null;
@@ -1002,7 +1124,9 @@ async function pull(first){
   if(!data){if(S.tx.length||S.off.length)push();return}
   if(data.updated_at===lastRemote)return;
   if(timer&&!first)return;
+  const needsMig=data.data?.rulesV!==6;
   lastRemote=data.updated_at;S=mig(data.data);localStorage.setItem(KEY,JSON.stringify(S));setSync('sincronizado');
+  if(needsMig)push();
   if(!document.activeElement||!['INPUT','SELECT'].includes(document.activeElement.tagName))render();
 }
 function loginScreen(msg){

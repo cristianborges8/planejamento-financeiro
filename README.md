@@ -12,7 +12,7 @@ Central de gestão financeira e planejamento futuro do casal (HTML + CSS + JavaS
 | `lib/` | Chart.js, SheetJS (`xlsx`) e `supabase-js` empacotados localmente |
 | `config.js` | URL do Supabase e chave `publishable` / `anon` (pública, protegida por RLS) |
 | `supabase.sql` | Criação da tabela `household` (`id = 1`) e policies de RLS para os dois e-mails |
-| `sw.js`, `manifest.webmanifest` | PWA e cache offline (`fin-v4`, estratégia network-first com atualização imediata) |
+| `sw.js`, `manifest.webmanifest` | PWA e cache offline (`fin-v5`, estratégia network-first com atualização imediata) |
 | `data.js` | Seed local opcional com dados pessoais. **Está no `.gitignore`; nunca versionar** |
 
 Os dados ficam em uma única linha (`household`, `id = 1`, coluna `data` em JSONB). O navegador mantém cópia em `localStorage`, sincroniza automaticamente com o Supabase (com detecção de conflitos de edição simultânea) e guarda até **5 pontos de restauração locais** antes de operações críticas.
@@ -36,21 +36,21 @@ Para atualizar o cache no navegador após um deploy, use `Ctrl + F5` (Windows/Li
 A navegação é dividida em três grupos visuais para facilitar o uso diário:
 
 ### 1. Panorama
-- **Visão geral:** projeção mês a mês, resumo anual, gráficos de evolução (renda × despesas e saldo acumulado), KPIs com indicadores semânticos e exportação para `.xlsx`.
-- **Visão mensal:** detalhamento de qualquer mês (`◀ ▶`), com resumo de acerto entre Cristian e Pedro, botão **"Copiar resumo do acerto"** (formatado para WhatsApp), rateio do Conjunto, categorias do cartão e contas fora do cartão.
-- **Fluxo de caixa:** renda individual, cartão, despesas fora do cartão, investimentos planejados, sobra mensal, saldo em conta acumulado, FGTS individual (com rendimento de 3% a.a. + depósitos + saques) e patrimônio total.
-- **Histórico:** comparativo de faturas fechadas empilhado por pessoa e detalhamento por categoria.
+- **Visão geral:** projeção mês a mês, resumo anual, gráficos de evolução (renda × despesas e saldo acumulado), KPIs separando claramente **Despesas Individuais (Cristian / Pedro)** e **Despesas Conjuntas (sempre 50/50)**, e exportação para `.xlsx`.
+- **Visão mensal:** detalhamento de qualquer mês (`◀ ▶`), com separação explícita entre **Despesas Individuais (100% da pessoa)** e **Despesas Conjuntas (divididas 50/50)**, resumo de pagamento por pessoa (Cartão + Fora do Cartão), botão **"Copiar resumo do acerto"** (formatado para WhatsApp), categorias do cartão e contas fora do cartão.
+- **Fluxo de caixa:** renda individual, cartão (Individual + 50% Conjunto), despesas fora do cartão (Individual + 50% Conjunto), investimentos planejados, sobra mensal, saldo em conta acumulado, FGTS individual (com rendimento de 3% a.a. + depósitos + saques) e patrimônio total.
+- **Histórico:** comparativo de faturas fechadas separando gastos individuais de Cristian, individuais de Pedro, Conjuntas (100%) e 50% Conjunto de cada um.
 
 ### 2. Cartão & Contas
 - **Importar / Revisar:**
   1. Upload ou *drag-and-drop* da planilha `.xlsx` da fatura do Itaú.
-  2. Leitura automática do **Nome do portador** e **Final do cartão** para atribuir a `Cristian` ou `Pedro`.
+  2. Leitura automática do **Nome do portador** e **Final do cartão** para atribuir a `Cristian` ou `Pedro` (mantendo cada compra individual no seu titular; **QuintoAndar** permanece na fatura do cartão como despesa individual de **Pedro**, tipo `fixa`, categoria `Moradia`).
   3. Detecção de lançamentos duplicados na mesma fatura, permitindo **Mesclar apenas novos** (fatura parcial/aberta) ou **Substituir fatura inteira**.
   4. Revisão individual (`✓`), em lote (barra de seleção múltipla) ou total (**Confirmar todos**).
   5. **Gerenciador de Regras Memorizadas**: limpa prefixos de maquininhas/apps (`IFD*`, `UBER*`, `MP*`, `PAG*`, `PG*`, `GOOGLE*`, `APPLE.COM/BILL`) e permite editar ou excluir regras aprendidas.
-- **Cartão:** orçamento comprometido (parcelas, fixas, assinaturas) e estimativa de gastos variáveis (com botão para calcular a **Média dos últimos 3 meses** ou **Usar fatura atual**).
-- **Lançamentos:** tabela completa de transações das faturas com busca, filtros por pessoa/fatura/tipo/pendência, primeira coluna fixa (`sticky`) e **ações em lote** (alterar Quem, Tipo, Categoria ou excluir múltiplos itens de uma só vez).
-- **Fora do cartão:** rendas e despesas fixas/anuais por categoria (`Moradia`, `Transporte`, `Impostos`, `Saúde`, `Educação`, `Seguros`, `Lazer`, `Outros`). Inclui:
+- **Cartão:** orçamento comprometido (parcelas, fixas, assinaturas) e seção **Estimativas de gastos futuros (lançadas manualmente)** para cadastrar estimativas opcionais como *Gasolina*, *Alimentação fora*, *Mercado*, etc., escolhendo se cada estimativa é individual (`Cristian` ou `Pedro`) ou `Conjunto (50/50)`.
+- **Lançamentos:** tabela completa de transações das faturas com cards de soma separando **Individuais Cristian**, **Individuais Pedro**, **Conjuntas (100%)** e **Total pago por cada um (Indiv. + 50% Conj.)**, busca, filtros, primeira coluna fixa (`sticky`) e **ações em lote**.
+- **Fora do cartão:** rendas e despesas fixas/anuais separando claramente contas **Individuais (100%)** e contas **Conjuntas (50/50, como Aluguel e Carro)**. Inclui:
   - Checkbox **"Pago"** por mês de referência (`S.paid[ym]`) e card de progresso de contas quitadas;
   - Campo **Vencimento (dia 1–31)** com ordenação automática por dia;
   - Frequência (`Mensal` / `Anual`), início, fim, nº de parcelas e reajuste `% a.a.`.
@@ -75,20 +75,21 @@ A navegação é dividida em três grupos visuais para facilitar o uso diário:
 ## Regras de Cálculo e Rateio
 
 - **Validação:** somente entram nos cálculos lançamentos ativos (`ativo = true`), validados (`rev = false`) e com tipo diferente de `ignorar`.
-- **Projeção do Cartão:**
-  - Mês `0` (`base`): usa os valores reais da fatura atual.
-  - Meses `k > 0`:
-    - `parcelada`: projeta enquanto $k \le \text{total} - \text{atual}$;
-    - `fixa` e `assinatura_mensal`: projeta todos os meses até o mês `fim` (se definido);
-    - `assinatura_anual`: projeta a cada 12 meses a partir do mês em que ocorreu na fatura, até `fim`;
-    - `variavel`: usa a estimativa mensal configurada por pessoa na aba **Cartão**.
-- **Rateio do Conjunto:** itens marcados como `Conjunto` são divididos conforme o percentual configurado (`pctCristian`). É possível alternar com 1 clique entre **50 / 50** e **Proporcional à renda** (calculado automaticamente a partir das receitas ativas de Cristian e Pedro no mês).
+- **QuintoAndar na fatura do cartão:** mantido normalmente na fatura do cartão como despesa individual de **Pedro** (`quem = 'Pedro'`, `tipo = 'fixa'`, `cat = 'Moradia'`).
+- **Separação Individual vs Conjunto (50/50 fixo):**
+  - **Despesas Individuais (`Cristian` ou `Pedro`):** 100% atribuídas ao respectivo titular (tanto na fatura do cartão quanto fora do cartão).
+  - **Despesas Conjuntas (`Conjunto`, como Aluguel e Carro):** **todas** as despesas conjuntas são divididas **50% Cristian / 50% Pedro** (meio a meio), sem exceção.
+- **Sem simulação automática de variáveis:**
+  - **Mês atual (`ym <= base`):** mostra exatamente os lançamentos reais da fatura atual (parcelas, fixas, assinaturas e variáveis já lançadas no mês) + contas fora do cartão.
+  - **Meses futuros (`ym > base`):** projeta apenas despesas já programadas (`parcelada`, `fixa`, `assinatura_mensal`, `assinatura_anual` e `fora do cartão`). Não há simulação automática de gastos variáveis.
+- **Estimativas de gastos futuros (opcionais e manuais):**
+  - Caso queira incluir estimativas em meses futuros (ex.: *Gasolina*, *Alimentação fora*, *Mercado*, etc.), basta lançá-las na aba **Cartão** (ou pelo botão rápido `+ Lançamento` → **Estimativa futura**), escolhendo se o item é `Cristian` (Individual 100%), `Pedro` (Individual 100%) ou `Conjunto` (50/50), o valor mensal, o mês de início e o mês final opcional.
 
 ---
 
 ## Usabilidade, Tema Escuro e Atalhos
 
-- **Botão Flutuante (`+`)**: no canto inferior direito (mobile e desktop) para lançar rapidamente uma despesa de Cartão ou Fora do Cartão em poucos segundos.
+- **Botão Flutuante (`+ Lançamento`)**: no canto inferior direito (mobile e desktop) para lançar rapidamente uma despesa de **Cartão**, **Fora do Cartão** ou **Estimativa futura** em poucos segundos.
 - **Modo Escuro (`🌙 Escuro` / `☀️ Claro`)**: alternância imediata no cabeçalho, com persistência em `localStorage` (`fin_theme`).
 - **Atalhos de Teclado**:
   - `Alt + N`: abrir modal de novo lançamento rápido;
