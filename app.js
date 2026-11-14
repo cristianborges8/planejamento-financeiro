@@ -27,7 +27,11 @@ function splitCasa(d){const o=d.off||[],i=o.findIndex(x=>x.nome==='Aluguel+taxas
  o.splice(i,1,p('Aluguel',2158.18),p('Taxa de serviço',55.90),p('IPTU',161.77),p('Seguro incêndio',28.73))}
 function mig(d){
   splitCasa(d);d.rules=d.rules||{};d.meta=d.meta||{};d.paid=d.paid||{};
-  {const e=d.extras=d.extras||{};e.metas=e.metas||{};e.reserva=e.reserva||{meta:0,saldo:0,aporte:0,rend:0.8};e.inv=e.inv||[];e.saques=e.saques||[];e.compras=e.compras||[];e.cen=e.cen||{moradiaPct:0,rendaPct:0,varPct:0,extra:0,extraDe:'',quitarId:'',quitarMes:''}}
+  {const e=d.extras=d.extras||{};e.metas=e.metas||{};e.reserva=e.reserva||{meta:0,saldo:0,aporte:0,rend:0.8};e.inv=e.inv||[];e.saques=e.saques||[];e.compras=e.compras||[];e.cen=e.cen||{moradiaPct:0,rendaPct:0,varPct:0,extra:0,extraDe:'',quitarId:'',quitarMes:''};
+    e.acertoPix=e.acertoPix||{};
+    e.irpf=Object.assign({cristianNome:'Cristian',cristianCpf:'',pedroNome:'Pedro',pedroCpf:'',modo:'reembolso',uf:'SP',itcmdTeto:'',includeOffInCristian:true,useCalcIfNoPix:true,includeProjHealth:false},e.irpf||{});
+    e.irpfBenef=e.irpfBenef||{};
+  }
   const st=d.settings;
   st.pctCristian=50;
   st.fgts=st.fgts||{Cristian:{ini:0,dep:0},Pedro:{ini:0,dep:0}};
@@ -73,13 +77,28 @@ const EST_PRESETS=[
   {nome:'Farmácia',cat:'Saúde',quem:'Conjunto'},
   {nome:'Lazer',cat:'Lazer',quem:'Conjunto'}
 ];
+const ITCMD_UFS={
+  SP:{nome:'São Paulo (SP)',teto:96050,aliq:'4%',regra:'2.500 UFESPs/ano civil (UFESP 2026 = R$ 38,42)'},
+  RJ:{nome:'Rio de Janeiro (RJ)',teto:55804.5,aliq:'4% a 8%',regra:'11.250 UFIR-RJ/ano em dinheiro (UFIR 2026 = R$ 4,9604)'},
+  MG:{nome:'Minas Gerais (MG)',teto:57899,aliq:'5%',regra:'10.000 UFEMGs em 3 anos civis (UFEMG 2026 = R$ 5,7899)'},
+  RS:{nome:'Rio Grande do Sul (RS)',teto:0,aliq:'3% a 4%',regra:'Sem isenção geral para doações em dinheiro'},
+  PR:{nome:'Paraná (PR)',teto:0,aliq:'4%',regra:'Sem isenção geral por valor para doações em dinheiro'},
+  SC:{nome:'Santa Catarina (SC)',teto:2000,aliq:'1% a 8%',regra:'Isenção restrita (~R$ 2.000 por doação/12 meses; consulte Sefaz-SC)'},
+  DF:{nome:'Distrito Federal (DF)',teto:115000,aliq:'4% a 6%',regra:'Referência aproximada de isenção anual; consulte Sefaz-DF'},
+  BA:{nome:'Bahia (BA)',teto:0,aliq:'3,5%',regra:'Sem isenção geral por valor para doações em dinheiro'},
+  OTHER:{nome:'Outro Estado (UF)',teto:0,aliq:'variável',regra:'Informe abaixo o teto de isenção vigente no seu estado'}
+};
 let S=load(),view='casal',tab='geral',MS=null,charts=[],IMP=null,rulesOpen=false,currentUser=null,SEL=new Set();
-let geralMode='linhas',showPastMatrix=false,openVarQ=new Set(),openMesDet=new Set();
+let geralMode='linhas',showPastMatrix=false,openVarQ=new Set(),openMesDet=new Set(),irpfYear='';
 const F={quem:'',tipo:'',txt:'',fat:null,rev:false,hf:null,rtxt:''};
 const cur=x=>x.fatura===S.settings.base;
 const live=x=>x.ativo&&!x.rev&&x.tipo!=='ignorar';
 const isPaid=(ym,k)=>!!(S.paid?.[ym]?.[k]);
 const setPaid=(ym,k,v)=>{S.paid=S.paid||{};S.paid[ym]=S.paid[ym]||{};if(v)S.paid[ym][k]=true;else delete S.paid[ym][k]};
+const todayISO=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const todayYM=()=>todayISO().slice(0,7);
+const fmtDateBR=iso=>{const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:(iso||'–')};
+const daysInMonth=ym=>new Date(+ym.slice(0,4),+ym.slice(5),0).getDate();
 
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.tx)return mig(j)}catch(e){}return mig(structuredClone(window.SEED||EMPTY))}
 function save(){S.meta.updatedAt=new Date().toISOString();if(currentUser)S.meta.updatedBy=currentUser;localStorage.setItem(KEY,JSON.stringify(S));push()}
@@ -212,7 +231,7 @@ function captureFocus(m){
     trR&&a.dataset.rf?`tr[data-rule="${CSS.escape(trR.dataset.rule)}"] [data-rf="${a.dataset.rf}"]`:
     trV&&a.dataset.vf?`tr[data-vid="${trV.dataset.vid}"] [data-vf="${a.dataset.vf}"]`:
     a.id?`#${a.id}`:
-    ['s','fg','meta','res','cen','v','si'].map(k=>a.dataset[k]!=null?`[data-${k}="${CSS.escape(a.dataset[k])}"]`:null).find(Boolean);
+    ['s','fg','meta','res','cen','v','si','irpf'].map(k=>a.dataset[k]!=null?`[data-${k}="${CSS.escape(a.dataset[k])}"]`:null).find(Boolean);
   if(!sel)return null;
   let ss=null,se=null;try{ss=a.selectionStart;se=a.selectionEnd}catch(e){}
   return {sel,ss,se};
@@ -243,7 +262,7 @@ function render(){
   document.getElementById('meta').textContent=(mt.lastImport?`Última importação: fatura ${lab(mt.lastImport.fatura)} em ${fd(mt.lastImport.at)}`:'Nenhuma importação ainda')+(mt.updatedAt?` · Atualizado em ${fd(mt.updatedAt)}${mt.updatedBy?` por ${mt.updatedBy}`:''}`:'');
   document.querySelector('[data-tab=imp]').textContent='Importar / Revisar'+(nr?` (${nr})`:'');
   updateMobBar();
-  m.innerHTML={metas:rMetas,planos:rPlanos,cen:rCen,fluxo:rFluxo,geral:rGeral,mes:rMes,cartao:rCartao,lanc:rLanc,fora:rFora,prem:rPrem,imp:rImp,hist:rHist}[tab]();
+  m.innerHTML={metas:rMetas,planos:rPlanos,cen:rCen,fluxo:rFluxo,geral:rGeral,mes:rMes,cartao:rCartao,lanc:rLanc,fora:rFora,irpf:rIrpf,prem:rPrem,imp:rImp,hist:rHist}[tab]();
   if(tab==='geral')drawGeral();
   if(tab==='fluxo')drawFluxo();
   if(tab==='planos')drawPlanos();
@@ -253,6 +272,112 @@ function render(){
   m.querySelectorAll('.tw').forEach((el,i)=>{if(scrolls[i]){el.scrollTop=scrolls[i][0];el.scrollLeft=scrolls[i][1]}});
   restoreFocus(m,fc);
 }
+
+function dueStatus(o,ym){
+  if(!o.venc||o.kind==='receita')return null;
+  if(isPaid(ym,o.id))return {effDay:Math.min(o.venc,daysInMonth(ym)),diff:null,cls:'due-ok',label:'Pago ✓',urgent:false,paid:true};
+  const effDay=Math.min(+o.venc||1,daysInMonth(ym)),curYm=todayYM();
+  if(ym<curYm)return {effDay,diff:-1,cls:'due-over',label:`Vencida (${effDay}/${ym.slice(5)})`,urgent:true,over:true};
+  if(ym>curYm)return {effDay,diff:null,cls:'due-later',label:`Dia ${effDay}`,urgent:false};
+  const diff=effDay-new Date().getDate();
+  if(diff<0)return {effDay,diff,cls:'due-over',label:`Vencida há ${-diff}d`,urgent:true,over:true};
+  if(diff===0)return {effDay,diff,cls:'due-over',label:'Vence hoje!',urgent:true,soon:true};
+  if(diff<=5)return {effDay,diff,cls:'due-soon',label:`Vence em ${diff}d`,urgent:true,soon:true};
+  return {effDay,diff,cls:'due-later',label:`Dia ${effDay} (em ${diff}d)`,urgent:false};
+}
+function dueAlertsPanel(ym,alwaysShow=false){
+  const list=S.off.filter(o=>o.kind!=='receita'&&offActive(o,ym)&&weight(o.quem)>0);
+  if(!list.length)return '';
+  const unpaidWithVenc=list.filter(o=>!isPaid(ym,o.id)&&o.venc).map(o=>({o,st:dueStatus(o,ym),val:offV(o,ym)})).sort((a,b)=>(a.st.effDay)-(b.st.effDay));
+  const urgent=unpaidWithVenc.filter(x=>x.st.urgent);
+  const later=unpaidWithVenc.filter(x=>!x.st.urgent);
+  const noVenc=list.filter(o=>!isPaid(ym,o.id)&&!o.venc);
+  const nOver=urgent.filter(x=>x.st.over).length,nSoon=urgent.length-nOver;
+  if(!alwaysShow&&!urgent.length)return '';
+  const totUrg=urgent.reduce((a,x)=>a+x.val,0),totLater=later.reduce((a,x)=>a+x.val,0);
+  const paidCount=list.filter(o=>isPaid(ym,o.id)).length;
+  const panelCls=nOver?'due-panel has-over':(urgent.length?'due-panel':'due-panel all-ok');
+  const itemHtml=({o,st,val})=>`<div class="due-item ${st.over?'over':st.soon?'soon':''}">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span class="due-badge ${st.cls}">${st.label}</span>
+      <b>${esc(o.nome)}</b>
+      <span class="tag t-${o.quem}">${o.quem}${o.quem==='Conjunto'?' (50/50)':''}</span>
+      <small class="note">Venc. ${String(st.effDay).padStart(2,'0')}/${ym.slice(5)} · ${esc(o.cat||'Outros')}</small>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <b>${brl(val)}</b>
+      <button class="b g" data-act="quick-pay" data-id="${o.id}" data-ym="${ym}" style="padding:4px 10px;font-size:12px">✓ Marcar pago</button>
+    </div>
+  </div>`;
+  return `<div class="panel ${panelCls}">
+    <div class="bar" style="justify-content:space-between;margin-bottom:${urgent.length||later.length?'6':'0'}px">
+      <h2 style="margin:0">⏰ Central de Contas a Vencer — ${lab(ym)}</h2>
+      <div class="bar" style="margin:0">
+        ${nOver?`<span class="due-badge due-over">${nOver} vencida(s)</span>`:''}
+        ${nSoon?`<span class="due-badge due-soon">${nSoon} vence(m) em até 5 dias (${brl(totUrg)})</span>`:''}
+        ${!urgent.length?`<span class="due-badge due-ok">Nenhuma conta vencendo nos próximos 5 dias ✓</span>`:''}
+        <span class="note">${paidCount}/${list.length} pagas no mês</span>
+      </div>
+    </div>
+    ${urgent.length?`<div class="due-list">${urgent.map(itemHtml).join('')}</div>`:''}
+    ${later.length?`<details style="margin-top:8px"><summary class="note" style="cursor:pointer;font-weight:600">Ver +${later.length} conta(s) a vencer depois no mês (${brl(totLater)})</summary><div class="due-list">${later.map(itemHtml).join('')}</div></details>`:''}
+    ${noVenc.length&&alwaysShow?`<div class="note" style="margin-top:6px">💡 ${noVenc.length} conta(s) sem dia de vencimento preenchido (preencha a coluna <b>Venc.</b> abaixo para receber alertas de 5 dias).</div>`:''}
+  </div>`;
+}
+function openPixModal(ym,calcTotal,calcCard=0,calcOff=0){
+  const qm=document.getElementById('qmodal');if(!qm)return;
+  const ex=(S.extras.acertoPix&&S.extras.acertoPix[ym])||null;
+  const defVal=ex?ex.valor:+((calcTotal||0).toFixed(2));
+  const defData=(ex&&ex.data)||todayISO();
+  const defCod=(ex&&ex.codigo)||'';
+  const defObs=(ex&&ex.obs)||'';
+  qm.hidden=false;
+  qm.innerHTML=`<div class="qbox" style="max-width:460px">
+    <h2>💸 Registrar Pix de Acerto — ${lab(ym)}</h2>
+    <div class="note" style="margin-bottom:10px">
+      Parte calculada do Pedro neste mês: <b>${brl(calcTotal)}</b>
+      ${(calcCard||calcOff)?` <br><small>(Cartão: ${brl(calcCard)} + Fora do cartão: ${brl(calcOff)})</small>`:''}
+    </div>
+    <div class="qgrid" style="grid-template-columns:135px 1fr">
+      <label>Data do Pix</label><input id="px-data" type="date" value="${esc(defData)}">
+      <label>Valor transferido (R$)</label><input id="px-val" type="number" step="0.01" value="${defVal}">
+      <label>Cód. Pix / E2E (opc.)</label><input id="px-cod" placeholder="Ex.: E0000000020260408..." value="${esc(defCod)}">
+      <label>Observação (opc.)</label><input id="px-obs" placeholder="Ex.: Comprovante Nubank / Itaú" value="${esc(defObs)}">
+    </div>
+    <div class="note" style="margin-bottom:12px">Este registro alimenta automaticamente o <b>Dossiê IRPF & Conciliação Fiscal</b>.</div>
+    <div class="bar" style="justify-content:space-between;margin:0">
+      ${ex?`<button class="b r" id="px-del" style="padding:6px 10px;font-size:12px">Limpar registro</button>`:'<span></span>'}
+      <div class="bar" style="margin:0">
+        <button class="b g" id="px-cancel">Cancelar</button>
+        <button class="b" id="px-save">Salvar Pix & Marcar ✓</button>
+      </div>
+    </div>
+  </div>`;
+  qm.querySelector('#px-val')?.focus();
+  const close=()=>{qm.hidden=true;render()};
+  qm.querySelector('#px-cancel').onclick=close;
+  qm.onclick=e=>{if(e.target===qm)close()};
+  if(ex){
+    qm.querySelector('#px-del').onclick=()=>{
+      if(!confirm(`Remover o registro de Pix de ${lab(ym)}?`))return;
+      delete S.extras.acertoPix[ym];
+      setPaid(ym,'acerto',false);
+      qm.hidden=true;save();render();
+    };
+  }
+  qm.querySelector('#px-save').onclick=()=>{
+    const data=qm.querySelector('#px-data').value||todayISO();
+    const valor=+qm.querySelector('#px-val').value||0;
+    const codigo=qm.querySelector('#px-cod').value.trim();
+    const obs=qm.querySelector('#px-obs').value.trim();
+    if(valor<=0)return alert('Informe o valor transferido pelo Pix.');
+    S.extras.acertoPix=S.extras.acertoPix||{};
+    S.extras.acertoPix[ym]={data,valor:+valor.toFixed(2),codigo,obs,updatedAt:new Date().toISOString()};
+    setPaid(ym,'acerto',true);
+    qm.hidden=true;save();render();
+  };
+}
+
 
 const nextYearDec=()=>`${+S.settings.base.slice(0,4)+1}-12`;
 const endMonth=()=>{const e=S.settings.flowEnd;return e&&e>S.settings.base?e:nextYearDec()};
@@ -491,6 +616,7 @@ function rGeral(){
   }
 
   return `${nrev?`<div class="warn">${nrev} lançamentos aguardando validação: ficam fora dos cálculos até você confirmar (aba Importar / Revisar).</div>`:''}
+  ${dueAlertsPanel(todayYM(),false)}
   <div class="bar" style="justify-content:space-between;margin-bottom:10px">
     ${horizonCtrl()}
     <span class="note">Projeção: <b>apenas fixas, parcelas e assinaturas programadas</b>${optAtivas?` + <b>${optAtivas} estimativa(s) manual(is)</b>`:' (sem simulação automática de variáveis)'}${S.settings.includePlans?' · 📋 com Planos':''}</span>
@@ -588,7 +714,7 @@ function rMes(){
   const pend=S.tx.filter(x=>x.rev&&x.fatura===ym).length,i=Ms.indexOf(ym);
   const status=ym<base?'fatura real':ym===base?'fatura atual (lançada)':'projeção programada';
   const vLab={casal:'casal',cristian:'Cristian',pedro:'Pedro',conjunto:'Conjunto'}[view];
-  const totC=payC+offsC,totP=payP+offsP,fatOk=isPaid(ym,'fatura'),acOk=isPaid(ym,'acerto');
+  const totC=payC+offsC,totP=payP+offsP,fatOk=isPaid(ym,'fatura'),acOk=isPaid(ym,'acerto'),pix=S.extras.acertoPix?.[ym]||null;
 
   const buildPersonPanel=(q,title,subCls,isConj)=>{
     const cList=rawItems.filter(x=>x.quem===q).sort((a,b)=>b.valor-a.valor);
@@ -620,8 +746,15 @@ function rMes(){
     <div class="card"><small>🟠 Individuais Pedro (100%)</small><b>${brl(totIndP)}</b><small class="sub">Cartão (c/ QuintoAndar): ${brl(sp.Pedro)}${offIndP?` + Fora: ${brl(offIndP)}`:''}</small></div>
     <div class="card c-warn"><small>🟢 Conjuntas (Total 100%)</small><b>${brl(totConj)}</b><small class="sub">Cartão: ${brl(sp.Conjunto)} + Aluguel/Carro: ${brl(offConj)} → <b>${brl(meioConj)} p/ cada (50/50)</b></small></div>
     <div class="card"><small>📌 Total Cristian (Indiv. + 50% Conj.)</small><b>${brl(totC)}</b><small class="sub">Indiv. ${brl(totIndC)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recC-totC)}">${brl(recC-totC)}</b></small></div>
-    <div class="card" style="border-top:3px solid #d9480f"><small>📌 Total Pedro (Indiv. + 50% Conj.)</small><b>${brl(totP)}</b><small class="sub">Indiv. ${brl(totIndP)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recP-totP)}">${brl(recP-totP)}</b></small><div style="display:flex;gap:10px;margin-top:4px"><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="fatura" data-ym="${ym}" ${fatOk?'checked':''}><span class="${fatOk?'pos':''}">${fatOk?'Fatura paga ✓':'Fatura aberta'}</span></label><label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="acerto" data-ym="${ym}" ${acOk?'checked':''}><span class="${acOk?'pos':''}">${acOk?'Acerto ok ✓':'Acerto pend.'}</span></label></div></div>
+    <div class="card" style="border-top:3px solid #d9480f"><small>📌 Total Pedro (Indiv. + 50% Conj.)</small><b>${brl(totP)}</b><small class="sub">Indiv. ${brl(totIndP)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recP-totP)}">${brl(recP-totP)}</b></small>
+      <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
+        <label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="fatura" data-ym="${ym}" ${fatOk?'checked':''}><span class="${fatOk?'pos':''}">${fatOk?'Fatura paga ✓':'Fatura aberta'}</span></label>
+        <label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="acerto" data-ym="${ym}" data-calc="${totP.toFixed(2)}" data-card="${payP.toFixed(2)}" data-off="${offsP.toFixed(2)}" ${acOk?'checked':''}><span class="${acOk?'pos':''}">${acOk?'Acerto ok ✓':'Acerto pend.'}</span></label>
+      </div>
+      ${pix?`<button type="button" class="pix-pill" data-act="edit-pix" data-ym="${ym}" data-calc="${totP.toFixed(2)}" data-card="${payP.toFixed(2)}" data-off="${offsP.toFixed(2)}" title="Ver ou editar comprovante Pix registrado">${acOk?'💸':'⚠️'} Pix ${brl(pix.valor)} · ${fmtDateBR(pix.data)}${pix.codigo?' · '+esc(pix.codigo.slice(0,12)):''} ✎</button>`:(acOk?`<button type="button" class="b g" data-act="edit-pix" data-ym="${ym}" data-calc="${totP.toFixed(2)}" data-card="${payP.toFixed(2)}" data-off="${offsP.toFixed(2)}" style="margin-top:6px;padding:3px 9px;font-size:11.5px">+ Registrar dados do Pix (IRPF)</button>`:'')}
+    </div>
   </div></div>
+  ${dueAlertsPanel(ym,false)}
 
   <div class="panel">
     <h2>Quadro Resumo de Fechamento em ${lab(ym)} (Como as linhas se somam)</h2>
@@ -665,7 +798,7 @@ function rMes(){
 
   <div class="row">
     <div class="panel" style="flex:1;min-width:320px"><h2>Gastos do cartão por categoria (${vLab})</h2><div class="tw"><table>${Object.entries(cat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${num(v)}</td></tr>`).join('')}</table></div></div>
-    <div class="panel" style="flex:1;min-width:320px"><h2>Checklist de pagamentos Fora do Cartão (${lab(ym)}) <span class="note">· ${nPaid}/${offDesp.length} pagas</span></h2><div class="tw"><table><tr><th class="l">Pago</th><th class="l">Item</th><th>Venc.</th><th>Valor</th></tr>${off.map(o=>{const ok=isPaid(ym,o.id);return `<tr style="${ok?'opacity:.65':''}"><td class="l">${o.kind==='receita'?'<span class="pos">✓</span>':`<input type="checkbox" data-paid="${o.id}" data-ym="${ym}" ${ok?'checked':''}>`}</td><td class="l">${esc(o.nome)} <small>(${o.quem}${o.quem==='Conjunto'?' · 50/50':''})</small></td><td>${o.venc?'dia '+o.venc:'–'}</td><td class="${o.kind==='receita'?'pos':'neg'}">${o.kind==='receita'?'+':'-'}${num(offV(o,ym)*weight(o.quem))}</td></tr>`}).join('')}</table></div></div>
+    <div class="panel" style="flex:1;min-width:320px"><h2>Checklist de pagamentos Fora do Cartão (${lab(ym)}) <span class="note">· ${nPaid}/${offDesp.length} pagas</span></h2><div class="tw"><table><tr><th class="l">Pago</th><th class="l">Item</th><th>Venc.</th><th>Valor</th></tr>${off.map(o=>{const ok=isPaid(ym,o.id),ds=dueStatus(o,ym);return `<tr style="${ok?'opacity:.65':''}"><td class="l">${o.kind==='receita'?'<span class="pos">✓</span>':`<input type="checkbox" data-paid="${o.id}" data-ym="${ym}" ${ok?'checked':''}>`}</td><td class="l">${esc(o.nome)} <small>(${o.quem}${o.quem==='Conjunto'?' · 50/50':''})</small></td><td>${o.venc?(ds&&!ok&&ds.urgent?`<span class="due-badge ${ds.cls}">${ds.label}</span>`:'dia '+o.venc):'–'}</td><td class="${o.kind==='receita'?'pos':'neg'}">${o.kind==='receita'?'+':'-'}${num(offV(o,ym)*weight(o.quem))}</td></tr>`}).join('')}</table></div></div>
   </div>`;
 }
 
@@ -989,12 +1122,12 @@ function rFora(){
   const renda=tot(rec),fora=tot(des),pagoVal=paidDes.reduce((a,o)=>a+offV(o,ref),0);
   const conjDes=actDes.filter(o=>o.quem==='Conjunto').reduce((a,o)=>a+offV(o,ref),0);
   const indDes=fora-conjDes;
-  const row=(o,isRec)=>{const[t,bg,fg]=st(o),ok=isPaid(ref,o.id),active=act(o);return `<tr data-id="${o.id}" style="${t==='encerrado'?'opacity:.55':''}">
+   const row=(o,isRec)=>{const[t,bg,fg]=st(o),ok=isPaid(ref,o.id),active=act(o),ds=active&&!isRec?dueStatus(o,ref):null;return `<tr data-id="${o.id}" style="${t==='encerrado'?'opacity:.55':''}">
    <td class="l"><input class="d" data-f="nome" value="${esc(o.nome)}"></td>
    ${isRec?'':`<td class="l">${active?`<input type="checkbox" data-paid="${o.id}" data-ym="${ref}" ${ok?'checked':''} title="Marcar como pago em ${lab(ref)}">`:'–'}</td>`}
    <td class="l"><select data-f="quem">${quemOpts(o.quem)}</select></td>
    <td><input type="number" step="0.01" data-f="valor" value="${o.valor}"></td>
-   <td><input type="number" min="1" max="31" data-f="venc" value="${o.venc||''}" placeholder="dia" style="width:54px"></td>
+   <td><div style="display:inline-flex;align-items:center;gap:5px"><input type="number" min="1" max="31" data-f="venc" value="${o.venc||''}" placeholder="dia" style="width:54px">${ds&&!ok&&ds.urgent?`<span class="due-badge ${ds.cls}">${ds.label}</span>`:''}</div></td>
    <td class="l"><select data-f="freq"><option value="mensal" ${o.freq!=='anual'?'selected':''}>Mensal</option><option value="anual" ${o.freq==='anual'?'selected':''}>Anual</option></select></td>
    <td class="l"><input type="month" data-f="inicio" value="${o.inicio}"></td>
    <td class="l"><input type="month" data-f="fim" value="${o.fim||''}"></td>
@@ -1012,9 +1145,281 @@ function rFora(){
    <div class="card"><small>Individuais Fora do Cartão</small><b>${brl(indDes)}</b><span class="sub">Total fora do cartão: ${brl(fora)}</span></div>
    <div class="card ${paidDes.length===actDes.length&&actDes.length?'c-pos':'c-warn'}"><small>Contas pagas (${lab(ref)})</small><b>${paidDes.length}/${actDes.length}</b><span class="sub">${brl(pagoVal)} pagos · faltam ${brl(Math.max(0,fora-pagoVal))}</span></div>
    <div class="card ${renda-fora>=0?'c-pos':'c-neg'}"><small>Sobra antes do cartão</small><b class="${cls(renda-fora)}">${brl(renda-fora)}</b><span class="sub">Disponível p/ cartão e caixa</span></div></div>
+  ${dueAlertsPanel(ref,true)}
   <div class="note">Despesas marcadas como "Conjunto" (ex.: Aluguel e Carro) são divididas 50/50 entre Cristian e Pedro. Despesas com nome individual ficam 100% para a respectiva pessoa.</div>
   ${group('Rendas',rec,'Renda','receita')}
   ${cats.map(c=>({c,l:des.filter(o=>(o.cat||'Outros')===c)})).filter(g=>g.l.length||OCATS.includes(g.c)).map(g=>group(g.c,g.l,g.c,'despesa')).join('')}`;
+}
+
+function irpfYears(){
+  const s=new Set([S.settings.base.slice(0,4),todayYM().slice(0,4)]);
+  S.tx.forEach(x=>{if(x.fatura)s.add(x.fatura.slice(0,4))});
+  S.off.forEach(o=>{if(o.inicio)s.add(o.inicio.slice(0,4));if(o.fim)s.add(o.fim.slice(0,4))});
+  Object.keys(S.extras.acertoPix||{}).forEach(ym=>s.add(ym.slice(0,4)));
+  return [...s].filter(Boolean).sort().reverse();
+}
+function irpfYearData(yr){
+  const ir=S.extras.irpf||{},base=S.settings.base,pixMap=S.extras.acertoPix||{};
+  const rows=Array.from({length:12},(_,i)=>{
+    const ym=`${yr}-${String(i+1).padStart(2,'0')}`;
+    const isReal=ym<=base;
+    const cList=isReal?S.tx.filter(x=>x.fatura===ym&&live(x)):monthItems(ym,false);
+    const cByQ={Cristian:0,Pedro:0,Conjunto:0};
+    cList.forEach(x=>cByQ[x.quem]=(cByQ[x.quem]||0)+x.valor);
+    const oByQ={Cristian:0,Pedro:0,Conjunto:0};
+    S.off.filter(o=>o.kind!=='receita'&&offActive(o,ym)).forEach(o=>{oByQ[o.quem]=(oByQ[o.quem]||0)+offV(o,ym)});
+    const cardTotal=cByQ.Cristian+cByQ.Pedro+cByQ.Conjunto;
+    const offTotal=oByQ.Cristian+oByQ.Pedro+oByQ.Conjunto;
+    const cristianCPF=cardTotal+(ir.includeOffInCristian!==false?offTotal:0);
+    const pedroInd=cByQ.Pedro+oByQ.Pedro;
+    const conj50=(cByQ.Conjunto+oByQ.Conjunto)*0.5;
+    const pedroCalc=pedroInd+conj50;
+    const pix=pixMap[ym]||null;
+    const pixVal=pix?(+pix.valor||0):0;
+    const acOk=isPaid(ym,'acerto');
+    return {ym,isReal,cardTotal,offTotal,cristianCPF,pedroInd,conj50,pedroCalc,pix,pixVal,acOk};
+  });
+  const tot=rows.reduce((a,r)=>({
+    cardTotal:a.cardTotal+r.cardTotal,offTotal:a.offTotal+r.offTotal,cristianCPF:a.cristianCPF+r.cristianCPF,
+    pedroInd:a.pedroInd+r.pedroInd,conj50:a.conj50+r.conj50,pedroCalc:a.pedroCalc+r.pedroCalc,
+    pixVal:a.pixVal+r.pixVal,nPix:a.nPix+(r.pixVal>0?1:0),nDecred:a.nDecred+(r.cardTotal>=5000?1:0)
+  }),{cardTotal:0,offTotal:0,cristianCPF:0,pedroInd:0,conj50:0,pedroCalc:0,pixVal:0,nPix:0,nDecred:0});
+  return {rows,tot};
+}
+function irpfClassifyDed(cat,desc){
+  const c=norm(cat),d=norm(desc);
+  if(/farmac|drogaria|droga\s*raia|drogasil|pacheco|pague\s*menos|panvel|ultrafarma/.test(c+' '+d))return 'farmacia';
+  if(/educac|escola|colegio|faculdade|universidade|ensino|creche|pos[\s-]?grad|mestrado|doutorado|\bpuc\b|\busp\b|\bfgv\b|\binsper\b|mackenzie|estacio|anhanguera|mensalidade\s*escol/.test(c+' '+d))return 'educacao';
+  if(/saude|medic|clinic|hospital|laborat|exame|fleury|dasa|lavoisier|odont|dentist|psicolog|terap|fisio|fono|nutri|oftalmo|unimed|bradesco\s*saude|sulamerica|\bamil\b|hapvida|notredame|plano\s*de\s*saude|ortoped|dermat|cardio|gineco|pediatr|urolog/.test(c+' '+d))return 'saude';
+  return null;
+}
+function irpfHealthEdu(yr,includeProj=false){
+  const base=S.settings.base,benefMap=S.extras.irpfBenef||{},items=[];
+  S.tx.filter(x=>live(x)&&x.fatura&&x.fatura.startsWith(yr+'-')&&(includeProj||x.fatura<=base)).forEach(x=>{
+    const nat=irpfClassifyDed(x.cat,x.desc);
+    if(!nat)return;
+    const keyId='tx:'+x.id;
+    const autoBenef=nat==='farmacia'?'NaoDedutivel':(x.quem==='Conjunto'?'Definir':x.quem);
+    const benef=benefMap[keyId]||autoBenef;
+    items.push({keyId,ym:x.fatura,data:x.data,desc:x.desc,orig:'Cartão',cat:x.cat||'Outros',nat,quemOrig:x.quem,valor:x.valor,benef});
+  });
+  for(let m=1;m<=12;m++){
+    const ym=`${yr}-${String(m).padStart(2,'0')}`;
+    if(!includeProj&&ym>base)continue;
+    S.off.filter(o=>o.kind!=='receita'&&offActive(o,ym)).forEach(o=>{
+      const nat=irpfClassifyDed(o.cat,o.nome);
+      if(!nat)return;
+      const keyId='off:'+o.id;
+      const autoBenef=nat==='farmacia'?'NaoDedutivel':(o.quem==='Conjunto'?'Definir':o.quem);
+      const benef=benefMap[keyId]||autoBenef;
+      items.push({keyId,ym,data:`${ym}-${String(Math.min(o.venc||1,daysInMonth(ym))).padStart(2,'0')}`,desc:o.nome,orig:'Fora do cartão',cat:o.cat||'Outros',nat,quemOrig:o.quem,valor:offV(o,ym),benef});
+    });
+  }
+  items.sort((a,b)=>a.ym.localeCompare(b.ym)||a.data.localeCompare(b.data));
+  const sumFor=(who,nat)=>items.filter(i=>i.benef===who&&(!nat||i.nat===nat)).reduce((a,i)=>a+i.valor,0);
+  return {
+    items,
+    cSaude:sumFor('Cristian','saude'),cEdu:sumFor('Cristian','educacao'),cTot:sumFor('Cristian','saude')+sumFor('Cristian','educacao'),
+    pSaude:sumFor('Pedro','saude'),pEdu:sumFor('Pedro','educacao'),pTot:sumFor('Pedro','saude')+sumFor('Pedro','educacao'),
+    pend:items.filter(i=>i.benef==='Definir').reduce((a,i)=>a+i.valor,0),
+    pendCount:items.filter(i=>i.benef==='Definir').length,
+    naoDed:sumFor('NaoDedutivel',null)
+  };
+}
+function irpfStatementText(yr,data){
+  const ir=S.extras.irpf||{},pedroNome=(ir.pedroNome||'Pedro').trim()||'Pedro',pedroCpf=(ir.pedroCpf||'').trim()||'[CPF do Pedro]';
+  const valBase=data.tot.pixVal>0?data.tot.pixVal:(ir.useCalcIfNoPix!==false?data.tot.pedroCalc:0);
+  if(ir.modo==='doacao'){
+    return `Transferências mensais recebidas de ${pedroNome}, CPF ${pedroCpf}, a título de doação em espécie via Pix, destinadas ao custeio e composição de despesas familiares no ano-calendário ${yr}, totalizando ${brl(valBase)}.`;
+  }
+  return `Transferências mensais recebidas de ${pedroNome}, CPF ${pedroCpf}, a título de ressarcimento/rateio proporcional de despesas familiares conjuntas e individuais custeadas pelo declarante em conta/cartão de sua titularidade, conforme demonstrativo de rateio anual anexado, totalizando ${brl(valBase)} no ano-calendário ${yr}.`;
+}
+function rIrpf(){
+  const yrs=irpfYears();
+  if(!irpfYear||!yrs.includes(irpfYear))irpfYear=yrs[0]||S.settings.base.slice(0,4);
+  const yr=irpfYear,ir=S.extras.irpf||{},data=irpfYearData(yr),ded=irpfHealthEdu(yr,!!ir.includeProjHealth);
+  const ufInfo=ITCMD_UFS[ir.uf||'SP']||ITCMD_UFS.SP;
+  const customTeto=ir.itcmdTeto!==''&&ir.itcmdTeto!=null?+ir.itcmdTeto:null;
+  const tetoEfetivo=customTeto!=null&&!isNaN(customTeto)?customTeto:ufInfo.teto;
+  const valRef=data.tot.pixVal>0?data.tot.pixVal:(ir.useCalcIfNoPix!==false?data.tot.pedroCalc:0);
+  const overItcmd=ir.modo==='doacao'&&(tetoEfetivo<=0?valRef>0:valRef>tetoEfetivo);
+  const pctItcmd=tetoEfetivo>0?Math.round(valRef/tetoEfetivo*100):0;
+  const txt=irpfStatementText(yr,data);
+  const diffPix=data.tot.pixVal-data.tot.pedroCalc;
+  const natLab={saude:'Saúde (Dedutível)',educacao:'Educação (Dedutível)',farmacia:'Farmácia (Não dedutível)'};
+
+  const dedTable=(list,emptyMsg)=>list.length?`<div class="tw" style="max-height:42vh"><table>
+    <thead><tr><th class="l">Mês</th><th class="l">Data</th><th class="l">Descrição</th><th class="l">Origem</th><th class="l">Tipo IRPF</th><th class="l">Titular no app</th><th>Valor</th><th class="l">CPF Dedutível</th></tr></thead>
+    <tbody>${list.map(i=>`<tr>
+      <td class="l">${lab(i.ym)}</td>
+      <td class="l">${fmtDateBR(i.data)}</td>
+      <td class="l"><b>${esc(i.desc.slice(0,42))}</b></td>
+      <td class="l"><span class="pill-orig">${esc(i.orig)}</span></td>
+      <td class="l"><span class="tag" style="background:${i.nat==='farmacia'?'#f1f3f5':i.nat==='saude'?'#e3f4e8':'#e3f1f3'};color:${i.nat==='farmacia'?'#495057':i.nat==='saude'?'#1e6b2e':'#0e6b7c'}">${natLab[i.nat]}</span></td>
+      <td class="l"><span class="tag t-${i.quemOrig}">${i.quemOrig}</span></td>
+      <td><b>${num(i.valor)}</b></td>
+      <td class="l"><select data-irpf-benef="${esc(i.keyId)}">
+        <option value="Cristian" ${i.benef==='Cristian'?'selected':''}>CPF Cristian</option>
+        <option value="Pedro" ${i.benef==='Pedro'?'selected':''}>CPF Pedro</option>
+        <option value="Definir" ${i.benef==='Definir'?'selected':''}>⚠ Definir CPF</option>
+        <option value="NaoDedutivel" ${i.benef==='NaoDedutivel'?'selected':''}>Não dedutível</option>
+      </select></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`:`<div class="note">${emptyMsg}</div>`;
+
+  return `<div class="panel">
+    <div class="bar" style="justify-content:space-between;margin-bottom:8px">
+      <div>
+        <h2 style="margin:0">🧾 Dossiê IRPF & Conciliação Fiscal — Ano-Calendário ${yr}</h2>
+        <div class="note" style="margin:2px 0 0">Evite malha fina da <b>Decred</b> (faturas ≥ R$ 5 mil/mês) e <b>e-Financeira</b> comprovando o rateio de despesas pagas pelo Pedro.</div>
+      </div>
+      <div class="bar no-print" style="margin:0">
+        <label class="note" style="display:inline-flex;align-items:center;gap:6px"><b>Ano-calendário:</b>
+          <select id="irpf-ano">${yrs.map(y=>`<option value="${y}" ${y===yr?'selected':''}>${y}</option>`).join('')}</select>
+        </label>
+        <button class="b g" data-act="export-irpf">📊 Exportar Dossiê (.xlsx)</button>
+        <button class="b" data-act="print-irpf">🖨️ Imprimir / PDF</button>
+      </div>
+    </div>
+    <div class="cards" style="margin-bottom:0">
+      <div class="card"><small>Gastos no CPF Cristian (${yr})</small><b>${brl(data.tot.cristianCPF)}</b><small class="sub">Cartão: ${brl(data.tot.cardTotal)} · Fora: ${brl(data.tot.offTotal)}${data.tot.nDecred?` · <b>${data.tot.nDecred} mês(es) Decred ≥5k</b>`:''}</small></div>
+      <div class="card"><small>Parte calculada do Pedro (${yr})</small><b>${brl(data.tot.pedroCalc)}</b><small class="sub">Indiv. Pedro: ${brl(data.tot.pedroInd)} + 50% Conj.: ${brl(data.tot.conj50)}</small></div>
+      <div class="card ${data.tot.pixVal>0?'c-pos':'c-warn'}"><small>Transferido por Pedro (Pix registrado)</small><b>${brl(data.tot.pixVal)}</b><small class="sub">${data.tot.nPix}/12 meses com Pix · Diferença vs rateio: <b class="${diffPix<0?'neg':'pos'}">${diffPix>=0?'+':''}${brl(diffPix)}</b></small></div>
+      <div class="card"><small>Deduções Saúde + Educação (${yr})</small><b style="font-size:15px">Cristian: ${brl(ded.cTot)} · Pedro: ${brl(ded.pTot)}</b><small class="sub">${ded.pendCount?`<span class="neg">${ded.pendCount} item(ns) Conjunto sem CPF definido</span>`:'Todos os recibos separados por CPF ✓'}</small></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>1. Classificação Fiscal & Dados do Dossiê (Reembolso vs Doação)</h2>
+    <div class="row" style="margin-bottom:10px">
+      <div style="flex:1;min-width:280px">
+        <div class="grid2" style="grid-template-columns:165px 1fr">
+          <label>Nome do declarante</label><input data-irpf="cristianNome" value="${esc(ir.cristianNome||'Cristian')}">
+          <label>Nome completo do Pedro</label><input data-irpf="pedroNome" value="${esc(ir.pedroNome||'Pedro')}" placeholder="Nome completo">
+          <label>CPF do Pedro</label><input data-irpf="pedroCpf" value="${esc(ir.pedroCpf||'')}" placeholder="000.000.000-00">
+        </div>
+      </div>
+      <div style="flex:1.2;min-width:300px">
+        <div class="grid2" style="grid-template-columns:180px 1fr">
+          <label>Enquadramento fiscal</label>
+          <select data-irpf="modo">
+            <option value="reembolso" ${ir.modo!=='doacao'?'selected':''}>Reembolso / Rateio de Despesas (Recomendado)</option>
+            <option value="doacao" ${ir.modo==='doacao'?'selected':''}>Doação em espécie (com alerta ITCMD)</option>
+          </select>
+          ${ir.modo==='doacao'?`<label>Estado (UF) p/ ITCMD</label>
+          <select data-irpf="uf">${Object.entries(ITCMD_UFS).map(([k,v])=>`<option value="${k}" ${(ir.uf||'SP')===k?'selected':''}>${v.nome}</option>`).join('')}</select>
+          <label>Teto isenção manual (R$)</label>
+          <input type="number" step="0.01" data-irpf="itcmdTeto" value="${ir.itcmdTeto??''}" placeholder="${ufInfo.teto?ufInfo.teto:'0 (sem isenção)'}">`:''}
+        </div>
+        <div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">
+          <label class="note" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" data-irpf="includeOffInCristian" ${ir.includeOffInCristian!==false?'checked':''}> Incluir contas fora do cartão na coluna "CPF Cristian"</label>
+          <label class="note" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" data-irpf="useCalcIfNoPix" ${ir.useCalcIfNoPix!==false?'checked':''}> Se Pix ainda não registrado, simular texto pelo rateio calculado</label>
+        </div>
+      </div>
+    </div>
+    ${ir.modo!=='doacao'?`<div class="info-ok">
+      <b>✓ Classificação recomendada: Reembolso / Rateio de Despesas Comuns</b><br>
+      <small>Contabilmente, o ressarcimento de despesas compartilhadas e compras de terceiros no cartão não gera acréscimo patrimonial nem fato gerador de <b>ITCMD estadual</b>. Mantenha os comprovantes Pix vinculados abaixo junto às faturas do cartão.</small>
+    </div>`:`<div class="${overItcmd?'danger-box':'warn'}">
+      <b>${overItcmd?'⚠️ ALERTA DE ITCMD ESTADUAL':'ℹ️ Monitoramento de ITCMD Estadual'} — ${esc(ufInfo.nome)} (Alíquota ${ufInfo.aliq})</b><br>
+      <small>${esc(ufInfo.regra)}. Valor acumulado no ano: <b>${brl(valRef)}</b> ${tetoEfetivo>0?`vs teto de isenção de <b>${brl(tetoEfetivo)}</b> (<b>${pctItcmd}%</b> utilizado).`:'— <b>este estado não possui isenção geral para doações em dinheiro!</b>'}
+      ${overItcmd?'<br><b>Atenção:</b> ao declarar como <b>Doação</b> acima do limite estadual, a Sefaz pode cobrar ITCMD (e em estados como SP é exigida declaração estadual mesmo quando isento). Considere alternar para <b>Reembolso / Rateio</b> se os valores forem ressarcimento de faturas e contas comuns.':''}</small>
+    </div>`}
+  </div>
+
+  <div class="panel">
+    <div class="bar" style="justify-content:space-between">
+      <div>
+        <h2 style="margin:0">2. Tabela de Conciliação Mensal Pronta para Declaração (${yr})</h2>
+        <div class="note" style="margin:2px 0 0">Clique em <b>Registrar / Editar</b> em qualquer mês para informar Data, Valor e Código E2E do Pix recebido.</div>
+      </div>
+    </div>
+    <div class="tw"><table>
+      <thead><tr>
+        <th class="l">Mês</th>
+        <th>Fatura/Contas CPF Cristian</th>
+        <th>Desp. Indiv. Pedro</th>
+        <th>50% Conjunto Pedro</th>
+        <th class="col-p">Total Calculado Pedro</th>
+        <th class="bl col-c">Transferido por Pedro (Pix)</th>
+        <th class="l">Data do Pix</th>
+        <th class="l">Documento / Ref</th>
+        <th class="no-print"></th>
+      </tr></thead>
+      <tbody>
+        ${data.rows.map(r=>`<tr>
+          <td class="l"><a href="#" data-mes="${r.ym}"><b>${lab(r.ym)}</b></a> <small class="note">(${r.isReal?'real':'proj.'})</small></td>
+          <td>${cellN(r.cristianCPF)}</td>
+          <td>${cellN(r.pedroInd)}</td>
+          <td>${cellN(r.conj50)}</td>
+          <td class="col-p">${cellN(r.pedroCalc)}</td>
+          <td class="bl col-c">${r.pixVal?`<b>${num(r.pixVal)}</b>`:(r.acOk?'<span class="note">ok (s/ valor)</span>':'<span class="z">–</span>')}</td>
+          <td class="l">${r.pix?.data?fmtDateBR(r.pix.data):'<span class="z">–</span>'}</td>
+          <td class="l"><small>${esc([r.pix?.codigo,r.pix?.obs].filter(Boolean).join(' · ')||'–')}</small></td>
+          <td class="no-print"><button class="b g" data-act="edit-pix" data-ym="${r.ym}" data-calc="${r.pedroCalc.toFixed(2)}" data-card="${(r.pedroInd+r.conj50).toFixed(2)}" data-off="0" style="padding:3px 9px;font-size:11.5px">${r.pix?'✎ Editar':'+ Pix'}</button></td>
+        </tr>`).join('')}
+        <tr class="tot">
+          <td class="l">TOTAL ${yr}</td>
+          <td>${num(data.tot.cristianCPF)}</td>
+          <td>${num(data.tot.pedroInd)}</td>
+          <td>${num(data.tot.conj50)}</td>
+          <td>${num(data.tot.pedroCalc)}</td>
+          <td class="bl">${num(data.tot.pixVal)}</td>
+          <td class="l">${data.tot.nPix}/12 meses</td>
+          <td class="l">–</td>
+          <td class="no-print"></td>
+        </tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="panel">
+    <div class="bar" style="justify-content:space-between">
+      <div>
+        <h2 style="margin:0">3. Texto Pronto para Copiar e Colar na Declaração do IRPF</h2>
+        <div class="note" style="margin:2px 0 0">Ficha sugerida no IRPF: <b>${ir.modo==='doacao'?'Rendimentos Isentos e Não Tributáveis → Código 14 (Transferências patrimoniais - doações)':'Rendimentos Isentos / Informações Complementares (discriminação da origem dos recursos)'}</b>.</div>
+      </div>
+      <div class="bar no-print" style="margin:0">
+        <button class="b" id="btn-copy-irpf" data-act="copy-irpf">📋 Copiar texto para IRPF</button>
+      </div>
+    </div>
+    ${data.tot.pixVal===0&&data.tot.pedroCalc>0?`<div class="note" style="color:#b4440c;margin-bottom:8px">ℹ️ Ainda não há Pix registrado para ${yr}; o texto abaixo está usando ${ir.useCalcIfNoPix!==false?'o total calculado pelo rateio':'R$ 0,00'}. Registre os Pix mensais acima para usar os valores exatos dos comprovantes.</div>`:''}
+    <textarea id="irpf-txt" class="irpf-copy" readonly>${esc(txt)}</textarea>
+  </div>
+
+  <div class="panel">
+    <div class="bar" style="justify-content:space-between">
+      <div>
+        <h2 style="margin:0">4. Deduções de Saúde e Educação Separadas por CPF (${yr})</h2>
+        <div class="note" style="margin:2px 0 0">Cada titular deve lançar na própria declaração apenas despesas com recibo/NF emitida no seu CPF. <b>Despesas de farmácia não são dedutíveis avulsas no IRPF.</b></div>
+      </div>
+      <label class="note no-print" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" data-irpf="includeProjHealth" ${ir.includeProjHealth?'checked':''}> Incluir meses projetados (${yr})</label>
+    </div>
+    <div class="cards">
+      <div class="card"><small>🔵 Dedutível — CPF Cristian</small><b>${brl(ded.cTot)}</b><small class="sub">Saúde: ${brl(ded.cSaude)} · Educação: ${brl(ded.cEdu)}</small></div>
+      <div class="card" style="border-top-color:#d9480f"><small>🟠 Dedutível — CPF Pedro</small><b>${brl(ded.pTot)}</b><small class="sub">Saúde: ${brl(ded.pSaude)} · Educação: ${brl(ded.pEdu)}</small></div>
+      <div class="card ${ded.pendCount?'c-warn':'c-pos'}"><small>🟢 Conjunto pendente de CPF</small><b>${brl(ded.pend)}</b><small class="sub">${ded.pendCount} item(ns) para escolher CPF da NF</small></div>
+      <div class="card"><small>💊 Farmácia / Não dedutível</small><b>${brl(ded.naoDed)}</b><small class="sub">Listados para controle, fora da dedução</small></div>
+    </div>
+    ${dedTable(ded.items,`Nenhuma despesa de Saúde ou Educação identificada em ${yr}. Classifique lançamentos com categoria "Saúde" ou "Educação" para vê-los aqui.`)}
+  </div>`;
+}
+function exportIrpfXlsx(yr){
+  const data=irpfYearData(yr),ded=irpfHealthEdu(yr,!!S.extras.irpf?.includeProjHealth),wb=XLSX.utils.book_new();
+  const rd=v=>typeof v==='number'?+v.toFixed(2):v;
+  const rows=[
+    ['Mês','Status','Fatura/Contas CPF Cristian','Desp. Indiv. Pedro','50% Conjunto Pedro','Total Calculado Pedro','Transferido por Pedro (Pix)','Data do Pix','Documento / Ref'],
+    ...data.rows.map(r=>[lab(r.ym),r.isReal?'Real':'Projeção',rd(r.cristianCPF),rd(r.pedroInd),rd(r.conj50),rd(r.pedroCalc),rd(r.pixVal),r.pix?.data?fmtDateBR(r.pix.data):'',[r.pix?.codigo,r.pix?.obs].filter(Boolean).join(' · ')]),
+    ['TOTAL '+yr,'',rd(data.tot.cristianCPF),rd(data.tot.pedroInd),rd(data.tot.conj50),rd(data.tot.pedroCalc),rd(data.tot.pixVal),data.tot.nPix+'/12 meses','']
+  ];
+  rows.push([],['Texto sugerido para IRPF:',irpfStatementText(yr,data)]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Conciliacao_IRPF_'+yr);
+  const dRows=[
+    ['Mês','Data','Descrição','Origem','Categoria','Tipo IRPF','Titular no app','Valor','CPF Dedutível'],
+    ...ded.items.map(i=>[lab(i.ym),fmtDateBR(i.data),i.desc,i.orig,i.cat,i.nat,i.quemOrig,rd(i.valor),i.benef])
+  ];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(dRows),'Saude_Educacao_'+yr);
+  XLSX.writeFile(wb,`dossie-irpf-${yr}.xlsx`);
 }
 function rPrem(){
   const s=S.settings,snaps=loadSnaps(),fd=t=>new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -1084,8 +1489,18 @@ function bind(m){
     saveRender();
   }));
   m.querySelectorAll('[data-paid]').forEach(el=>el.addEventListener('change',()=>{
-    setPaid(el.dataset.ym||S.settings.base,el.dataset.paid,el.checked);saveRender();
+    const ym=el.dataset.ym||S.settings.base,k=el.dataset.paid;
+    if(k==='acerto'&&el.checked){openPixModal(ym,+el.dataset.calc||0,+el.dataset.card||0,+el.dataset.off||0);return}
+    setPaid(ym,k,el.checked);saveRender();
   }));
+  m.querySelectorAll('[data-irpf]').forEach(el=>el.addEventListener('change',()=>{
+    const f=el.dataset.irpf;S.extras.irpf=S.extras.irpf||{};
+    S.extras.irpf[f]=el.type==='checkbox'?el.checked:el.value;saveRender();
+  }));
+  m.querySelectorAll('[data-irpf-benef]').forEach(el=>el.addEventListener('change',()=>{
+    S.extras.irpfBenef=S.extras.irpfBenef||{};S.extras.irpfBenef[el.dataset.irpfBenef]=el.value;saveRender();
+  }));
+  const ia=m.querySelector('#irpf-ano');if(ia)ia.addEventListener('change',()=>{irpfYear=ia.value;render()});
   m.querySelectorAll('[data-s]').forEach(el=>el.addEventListener('change',()=>{
     const f=el.dataset.s;S.settings[f]=el.type==='checkbox'?el.checked:(el.type==='number'?+el.value:el.value);saveRender();
   }));
@@ -1119,6 +1534,17 @@ function act(el){
   if(a==='gmode'){geralMode=el.dataset.mode||'linhas';render();return}
   if(a==='tog-varq'){const q=el.dataset.q;openVarQ.has(q)?openVarQ.delete(q):openVarQ.add(q);render();return}
   if(a==='tog-mesdet'){const ym=el.dataset.ym;openMesDet.has(ym)?openMesDet.delete(ym):openMesDet.add(ym);render();return}
+  if(a==='edit-pix'){openPixModal(el.dataset.ym,+el.dataset.calc||0,+el.dataset.card||0,+el.dataset.off||0);return}
+  if(a==='quick-pay'){setPaid(el.dataset.ym||todayYM(),el.dataset.id,true);save();render();return}
+  if(a==='copy-irpf'){
+    const ta=document.getElementById('irpf-txt');if(!ta)return;
+    const done=()=>{const b=document.getElementById('btn-copy-irpf');if(b){b.textContent='✓ Texto copiado!';setTimeout(()=>{b.textContent='📋 Copiar texto para IRPF'},2000)}};
+    if(navigator.clipboard?.writeText)navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ta.select();document.execCommand('copy');done()});
+    else{ta.select();document.execCommand('copy');done()}
+    return;
+  }
+  if(a==='export-irpf'){exportIrpfXlsx(irpfYear||S.settings.base.slice(0,4));return}
+  if(a==='print-irpf'){window.print();return}
   if(a==='del-tx'){S.tx=S.tx.filter(x=>x.id!==id);SEL.delete(id)}
   else if(a==='del-off'){S.off=S.off.filter(x=>x.id!==id)}
   else if(a==='del-rule'){delete S.rules[el.closest('tr').dataset.rule]}
