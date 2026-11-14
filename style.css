@@ -162,6 +162,12 @@ tr.sub-j50 td{background:rgba(43,138,62,.17)!important;color:#1e6b2e;font-size:1
 .due-item{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 .due-item.over{border-color:#f7b8cc;background:rgba(214,51,108,.05)}
 .due-item.soon{border-color:#ffd573;background:rgba(240,140,0,.06)}
+.due-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.due-week-hdr{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--petrol-dark);margin:10px 0 4px;display:flex;justify-content:space-between;align-items:center}
+.irpf-saldo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:12px}
+.irpf-saldo-box{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.irpf-saldo-box label{display:block;font-size:12px;font-weight:600;margin-bottom:6px;color:var(--petrol-dark)}
+.irpf-saldo-box input{width:100%!important;text-align:right!important}
 .pix-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:8px;font-size:11.5px;font-weight:550;background:#e3f4e8;color:#1e6b2e;border:1px solid #b5e2c1;cursor:pointer;margin-top:6px}
 .pix-pill:hover{opacity:.88}
 :root[data-theme="dark"] .pix-pill,body[data-theme="dark"] .pix-pill{background:#15311e;color:#69db7c;border-color:#255a36}
@@ -178,4 +184,5 @@ tr.sub-j50 td{background:rgba(43,138,62,.17)!important;color:#1e6b2e;font-size:1
   .tw{max-height:none!important;overflow:visible!important;border:1px solid #ccc}
   th,td{position:static!important;box-shadow:none!important}
 }
+
 

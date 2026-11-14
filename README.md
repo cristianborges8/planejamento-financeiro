@@ -12,7 +12,7 @@ Central de gestão financeira e planejamento futuro do casal (HTML + CSS + JavaS
 | `lib/` | Chart.js, SheetJS (`xlsx`) e `supabase-js` empacotados localmente |
 | `config.js` | URL do Supabase e chave `publishable` / `anon` (pública, protegida por RLS) |
 | `supabase.sql` | Criação da tabela `household` (`id = 1`) e policies de RLS para os dois e-mails |
-| `sw.js`, `manifest.webmanifest` | PWA e cache offline (`fin-v7`, estratégia network-first com atualização imediata) |
+| `sw.js`, `manifest.webmanifest` | PWA e cache offline (`fin-v8`, estratégia network-first com atualização imediata) |
 | `data.js` | Seed local opcional com dados pessoais. **Está no `.gitignore`; nunca versionar** |
 
 Os dados ficam em uma única linha (`household`, `id = 1`, coluna `data` em JSONB). O navegador mantém cópia em `localStorage`, sincroniza automaticamente com o Supabase (com detecção de conflitos de edição simultânea) e guarda até **5 pontos de restauração locais** antes de operações críticas.
@@ -51,7 +51,7 @@ A navegação é dividida em três grupos visuais para facilitar o uso diário:
 - **Cartão:** orçamento comprometido (parcelas, fixas, assinaturas) e seção **Estimativas de gastos futuros (lançadas manualmente)** para cadastrar estimativas opcionais como *Gasolina*, *Alimentação fora*, *Mercado*, etc., escolhendo se cada estimativa é individual (`Cristian` ou `Pedro`) ou `Conjunto (50/50)`.
 - **Lançamentos:** tabela completa de transações das faturas com cards de soma separando **Individuais Cristian**, **Individuais Pedro**, **Conjuntas (100%)** e **Total pago por cada um (Indiv. + 50% Conj.)**, busca, filtros, primeira coluna fixa (`sticky`) e **ações em lote**.
 - **Fora do cartão:** rendas e despesas fixas/anuais separando claramente contas **Individuais (100%)** e contas **Conjuntas (50/50, como Aluguel e Carro)**. Inclui:
-  - **Central de Contas a Vencer no Mês** com alerta visual para contas vencidas ou que vencem nos próximos 5 dias e botão rápido **"✓ Marcar pago"**;
+  - **Central de Contas a Vencer & Linha do Tempo Semanal** com alerta visual para contas vencidas ou que vencem nos próximos 5 dias, organização semanal (*Esta semana*, *Próxima semana*, *Mais adiante no mês*) e botão rápido **"✓ Marcar pago"**;
   - Checkbox **"Pago"** por mês de referência (`S.paid[ym]`) e card de progresso de contas quitadas;
   - Campo **Vencimento (dia 1–31)** com ordenação automática por dia;
   - Frequência (`Mensal` / `Anual`), início, fim, nº de parcelas e reajuste `% a.a.`.
@@ -62,7 +62,7 @@ A navegação é dividida em três grupos visuais para facilitar o uso diário:
   - *Reserva de Emergência* com cobertura em meses de custo fixo ou despesa total e progresso visual.
 - **Investimentos & FGTS:** aportes mensais programados com juros compostos (`% a.m.`), saques planejados do FGTS (para caixa ou investimento), compras futuras parceladas e gráfico de evolução do patrimônio (Conta + FGTS + Investimentos).
 - **Simulador (Cenários):** simula variações de renda (`%`), reajuste de moradia (`%`), redução de variáveis (`%`), despesa extra temporária e quitação antecipada de parcelamento/item sem alterar os dados oficiais.
-- **Dossiê IRPF:** módulo de conciliação fiscal anual (Decred / e-Financeira) com seletor de ano-calendário, tabela mensal comparando despesas no CPF de Cristian vs parte de Pedro vs Pix transferidos, classificação fiscal (**Reembolso/Rateio** vs **Doação** com alerta de teto estadual de ITCMD), texto pronto para copiar e colar no programa da Receita Federal, deduções de Saúde e Educação separadas por CPF (distinguindo farmácia não dedutível), impressão/PDF e exportação em `.xlsx`.
+- **Dossiê IRPF:** módulo de conciliação fiscal anual (Decred / e-Financeira) com seletor de ano-calendário, tabela mensal comparando despesas no CPF de Cristian vs parte de Pedro vs Pix transferidos, classificação fiscal (**Reembolso/Rateio** vs **Doação** com alerta de teto estadual de ITCMD), texto pronto para copiar e colar no programa da Receita Federal, deduções de Saúde e Educação separadas por CPF (distinguindo farmácia não dedutível), **saldos em 31/12 (contas, FGTS e investimentos)** com preenchimento assistido pelo fluxo, lista de **bens e parcelamentos no ano**, impressão/PDF e exportação em `.xlsx`.
 - **Premissas:** mês base da fatura atual, horizonte de projeção do cartão, guia de atalhos de teclado, exportação/importação de backup `.json` e **Pontos de Restauração Automáticos** (últimos 5 snapshots).
 
 ---

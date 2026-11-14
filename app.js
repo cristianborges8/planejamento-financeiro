@@ -29,7 +29,8 @@ function mig(d){
   splitCasa(d);d.rules=d.rules||{};d.meta=d.meta||{};d.paid=d.paid||{};
   {const e=d.extras=d.extras||{};e.metas=e.metas||{};e.reserva=e.reserva||{meta:0,saldo:0,aporte:0,rend:0.8};e.inv=e.inv||[];e.saques=e.saques||[];e.compras=e.compras||[];e.cen=e.cen||{moradiaPct:0,rendaPct:0,varPct:0,extra:0,extraDe:'',quitarId:'',quitarMes:''};
     e.acertoPix=e.acertoPix||{};
-    e.irpf=Object.assign({cristianNome:'Cristian',cristianCpf:'',pedroNome:'Pedro',pedroCpf:'',modo:'reembolso',uf:'SP',itcmdTeto:'',includeOffInCristian:true,useCalcIfNoPix:true,includeProjHealth:false},e.irpf||{});
+    e.irpf=Object.assign({cristianNome:'Cristian',cristianCpf:'',pedroNome:'Pedro',pedroCpf:'',modo:'reembolso',uf:'SP',itcmdTeto:'',includeOffInCristian:true,useCalcIfNoPix:true,includeProjHealth:false,saldosAno:{}},e.irpf||{});
+    e.irpf.saldosAno=e.irpf.saldosAno||{};
     e.irpfBenef=e.irpfBenef||{};
   }
   const st=d.settings;
@@ -231,7 +232,7 @@ function captureFocus(m){
     trR&&a.dataset.rf?`tr[data-rule="${CSS.escape(trR.dataset.rule)}"] [data-rf="${a.dataset.rf}"]`:
     trV&&a.dataset.vf?`tr[data-vid="${trV.dataset.vid}"] [data-vf="${a.dataset.vf}"]`:
     a.id?`#${a.id}`:
-    ['s','fg','meta','res','cen','v','si','irpf'].map(k=>a.dataset[k]!=null?`[data-${k}="${CSS.escape(a.dataset[k])}"]`:null).find(Boolean);
+    ['s','fg','meta','res','cen','v','si','irpf','irpfSaldo'].map(k=>a.dataset[k]!=null?`[data-${k.replace(/[A-Z]/g,m=>'-'+m.toLowerCase())}="${CSS.escape(a.dataset[k])}"]`:null).find(Boolean);
   if(!sel)return null;
   let ss=null,se=null;try{ss=a.selectionStart;se=a.selectionEnd}catch(e){}
   return {sel,ss,se};
@@ -309,6 +310,48 @@ function dueAlertsPanel(ym,alwaysShow=false){
       <button class="b g" data-act="quick-pay" data-id="${o.id}" data-ym="${ym}" style="padding:4px 10px;font-size:12px">✓ Marcar pago</button>
     </div>
   </div>`;
+  const curYm=todayYM(),dim=daysInMonth(ym);
+  let weekBuckets=[];
+  if(ym===curYm){
+    const now=new Date(),today=now.getDate(),dow=(now.getDay()+6)%7;
+    const endThis=Math.min(dim,today+(6-dow)),endNext=Math.min(dim,endThis+7);
+    const wThis=later.filter(x=>x.st.effDay<=endThis);
+    const wNext=later.filter(x=>x.st.effDay>endThis&&x.st.effDay<=endNext);
+    const wRest=later.filter(x=>x.st.effDay>endNext);
+    weekBuckets=[
+      {title:`📅 Ainda esta semana (até dia ${endThis})`,items:wThis},
+      {title:`📆 Próxima semana (dias ${Math.min(dim,endThis+1)}–${endNext})`,items:wNext},
+      {title:`🗓️ Mais adiante no mês (após dia ${endNext})`,items:wRest}
+    ].filter(b=>b.items.length);
+  }else{
+    weekBuckets=[
+      {title:'📅 1ª semana (dias 1–7)',items:later.filter(x=>x.st.effDay<=7)},
+      {title:'📆 2ª semana (dias 8–14)',items:later.filter(x=>x.st.effDay>=8&&x.st.effDay<=14)},
+      {title:'🗓️ 3ª semana (dias 15–21)',items:later.filter(x=>x.st.effDay>=15&&x.st.effDay<=21)},
+      {title:`🗓️ 4ª/5ª semana (dias 22–${dim})`,items:later.filter(x=>x.st.effDay>=22)}
+    ].filter(b=>b.items.length);
+  }
+  const sumVals=arr=>arr.reduce((a,x)=>a+x.val,0);
+  const timelineHtml=weekBuckets.length?weekBuckets.map(b=>`<div class="due-week-hdr"><span>${b.title}</span><span>${b.items.length} conta(s) · ${brl(sumVals(b.items))}</span></div><div class="due-list" style="margin-top:4px">${b.items.map(itemHtml).join('')}</div>`).join(''):'';
+  let weekSummaryPills='';
+  if(alwaysShow&&unpaidWithVenc.length){
+    if(ym===curYm){
+      const now=new Date(),today=now.getDate(),dow=(now.getDay()+6)%7;
+      const endThis=Math.min(dim,today+(6-dow)),endNext=Math.min(dim,endThis+7);
+      const sOver=sumVals(unpaidWithVenc.filter(x=>x.st.over));
+      const sThis=sumVals(unpaidWithVenc.filter(x=>!x.st.over&&x.st.effDay<=endThis));
+      const sNext=sumVals(unpaidWithVenc.filter(x=>!x.st.over&&x.st.effDay>endThis&&x.st.effDay<=endNext));
+      const sLater=sumVals(unpaidWithVenc.filter(x=>!x.st.over&&x.st.effDay>endNext));
+      weekSummaryPills=`<div class="due-pills">
+        ${sOver?`<span class="due-badge due-over">Atrasadas: ${brl(sOver)}</span>`:''}
+        <span class="due-badge ${sThis?'due-soon':'due-later'}">Esta semana: ${brl(sThis)}</span>
+        <span class="due-badge due-later">Próxima semana: ${brl(sNext)}</span>
+        <span class="due-badge due-later">Restante do mês: ${brl(sLater)}</span>
+      </div>`;
+    }else{
+      weekSummaryPills=`<div class="due-pills">${weekBuckets.map(b=>`<span class="due-badge due-later">${b.title.replace(/^[^\s]+\s/,'')}: ${brl(sumVals(b.items))}</span>`).join('')}</div>`;
+    }
+  }
   return `<div class="panel ${panelCls}">
     <div class="bar" style="justify-content:space-between;margin-bottom:${urgent.length||later.length?'6':'0'}px">
       <h2 style="margin:0">⏰ Central de Contas a Vencer — ${lab(ym)}</h2>
@@ -319,9 +362,10 @@ function dueAlertsPanel(ym,alwaysShow=false){
         <span class="note">${paidCount}/${list.length} pagas no mês</span>
       </div>
     </div>
+    ${weekSummaryPills}
     ${urgent.length?`<div class="due-list">${urgent.map(itemHtml).join('')}</div>`:''}
-    ${later.length?`<details style="margin-top:8px"><summary class="note" style="cursor:pointer;font-weight:600">Ver +${later.length} conta(s) a vencer depois no mês (${brl(totLater)})</summary><div class="due-list">${later.map(itemHtml).join('')}</div></details>`:''}
-    ${noVenc.length&&alwaysShow?`<div class="note" style="margin-top:6px">💡 ${noVenc.length} conta(s) sem dia de vencimento preenchido (preencha a coluna <b>Venc.</b> abaixo para receber alertas de 5 dias).</div>`:''}
+    ${later.length?(alwaysShow?`<div style="margin-top:8px">${timelineHtml}</div>`:`<details style="margin-top:8px"><summary class="note" style="cursor:pointer;font-weight:600">Linha do tempo semanal: ver +${later.length} conta(s) a vencer no mês (${brl(totLater)})</summary>${timelineHtml}</details>`):''}
+    ${noVenc.length&&alwaysShow?`<div class="note" style="margin-top:6px">💡 ${noVenc.length} conta(s) sem dia de vencimento preenchido (preencha a coluna <b>Venc.</b> abaixo para receber alertas de 5 dias e posicionar na linha do tempo).</div>`:''}
   </div>`;
 }
 function openPixModal(ym,calcTotal,calcCard=0,calcOff=0){
@@ -1234,10 +1278,77 @@ function irpfStatementText(yr,data){
   }
   return `Transferências mensais recebidas de ${pedroNome}, CPF ${pedroCpf}, a título de ressarcimento/rateio proporcional de despesas familiares conjuntas e individuais custeadas pelo declarante em conta/cartão de sua titularidade, conforme demonstrativo de rateio anual anexado, totalizando ${brl(valBase)} no ano-calendário ${yr}.`;
 }
+function irpfBalancesAndAssets(yr){
+  const decYm=`${yr}-12`,ir=S.extras.irpf||{},saved=(ir.saldosAno&&ir.saldosAno[yr])||{};
+  const flowRows=flow(!!S.settings.includePlans),decFlow=flowRows.find(r=>r.ym===decYm)||null;
+  const planDec=S.settings.includePlans?plans().find(r=>r.ym===decYm):null;
+  const est={
+    contaCasal:decFlow?decFlow.saldo:null,
+    fgtsC:decFlow?decFlow.fg.Cristian:null,
+    fgtsP:decFlow?decFlow.fg.Pedro:null,
+    invCasal:planDec?(planDec.res+planDec.invT):null
+  };
+  const numVal=k=>saved[k]!==''&&saved[k]!=null&&!isNaN(+saved[k])?+saved[k]:0;
+  const hasAny= ['contaC','contaP','fgtsC','fgtsP','invCasal'].some(k=>saved[k]!==''&&saved[k]!=null);
+  const totInformado=numVal('contaC')+numVal('contaP')+numVal('fgtsC')+numVal('fgtsP')+numVal('invCasal');
+
+  const assets=[];
+  S.off.filter(o=>o.kind!=='receita').forEach(o=>{
+    const isRelevant=(o.np||0)>1||/carro|veic|moto|imovel|apart|casa|financ|consorc|emprest|seguro\s*auto|ipva/i.test((o.nome||'')+' '+(o.cat||''));
+    if(!isRelevant)return;
+    let pagoYr=0,mesesYr=0;
+    for(let m=1;m<=12;m++){
+      const ym=`${yr}-${String(m).padStart(2,'0')}`;
+      if(offActive(o,ym)){pagoYr+=offV(o,ym);mesesYr++}
+    }
+    if(!mesesYr)return;
+    let status='';
+    if(o.fim&&o.fim<=decYm){
+      status=`Quitado / encerrado em ${lab(o.fim)}`;
+    }else if((o.np||0)>0){
+      const paidDec=Math.min(o.np,Math.max(0,diffM(o.inicio,decYm)+1));
+      const rem=Math.max(0,o.np-paidDec);
+      status=rem===0?`Quitado em ${lab(decYm)} ✓`:`${paidDec}/${o.np} parc. em 31/12 · restam ${rem} (${brl(rem*offV(o,decYm))})`;
+    }else{
+      status=`Ativo em 31/12/${yr} (${mesesYr} mês(es) no ano)`;
+    }
+    assets.push({nome:o.nome,orig:'Fora do cartão',cat:o.cat||'Outros',quem:o.quem,mesesYr,pagoYr,status,isQuit:Boolean((o.fim&&o.fim<=decYm)||((o.np||0)>0&&diffM(o.inicio,decYm)+1>=o.np))});
+  });
+
+  const txGroups={};
+  S.tx.filter(x=>live(x)&&x.tipo==='parcelada'&&(x.tot||0)>=3).forEach(x=>{
+    const startYm=addM(x.fatura,-((x.cur||1)-1));
+    const gk=`${key(x.desc)}|${startYm}|${x.tot}|${x.quem}`;
+    if(!txGroups[gk])txGroups[gk]={rep:x,startYm,rows:[]};
+    txGroups[gk].rows.push(x);
+  });
+  Object.values(txGroups).forEach(g=>{
+    let pagoYr=0,mesesYr=0;
+    for(let m=1;m<=12;m++){
+      const ym=`${yr}-${String(m).padStart(2,'0')}`;
+      const v=g.rows.reduce((a,x)=>a+txValAt(x,ym),0);
+      if(v>0){pagoYr+=v;mesesYr++}
+    }
+    if(!pagoYr)return;
+    const x=g.rep,endYm=addM(g.startYm,x.tot-1);
+    let status='',isQuit=false;
+    if(endYm<=decYm){
+      status=`Quitado em ${lab(endYm)} ✓`;isQuit=true;
+    }else{
+      const paidDec=Math.min(x.tot,Math.max(0,diffM(g.startYm,decYm)+1));
+      const rem=Math.max(0,x.tot-paidDec);
+      status=`${paidDec}/${x.tot} parc. em 31/12 · restam ${rem} (${brl(rem*x.valor)})`;
+    }
+    assets.push({nome:`${x.desc} (${x.tot}x)`,orig:'Cartão parcelado',cat:x.cat||'Outros',quem:x.quem,mesesYr,pagoYr,status,isQuit});
+  });
+
+  assets.sort((a,b)=>(a.orig===b.orig?b.pagoYr-a.pagoYr:(a.orig==='Fora do cartão'?-1:1)));
+  return {saved,est,hasAny,totInformado,assets};
+}
 function rIrpf(){
   const yrs=irpfYears();
   if(!irpfYear||!yrs.includes(irpfYear))irpfYear=yrs[0]||S.settings.base.slice(0,4);
-  const yr=irpfYear,ir=S.extras.irpf||{},data=irpfYearData(yr),ded=irpfHealthEdu(yr,!!ir.includeProjHealth);
+  const yr=irpfYear,ir=S.extras.irpf||{},data=irpfYearData(yr),ded=irpfHealthEdu(yr,!!ir.includeProjHealth),pat=irpfBalancesAndAssets(yr);
   const ufInfo=ITCMD_UFS[ir.uf||'SP']||ITCMD_UFS.SP;
   const customTeto=ir.itcmdTeto!==''&&ir.itcmdTeto!=null?+ir.itcmdTeto:null;
   const tetoEfetivo=customTeto!=null&&!isNaN(customTeto)?customTeto:ufInfo.teto;
@@ -1402,10 +1513,60 @@ function rIrpf(){
       <div class="card"><small>💊 Farmácia / Não dedutível</small><b>${brl(ded.naoDed)}</b><small class="sub">Listados para controle, fora da dedução</small></div>
     </div>
     ${dedTable(ded.items,`Nenhuma despesa de Saúde ou Educação identificada em ${yr}. Classifique lançamentos com categoria "Saúde" ou "Educação" para vê-los aqui.`)}
+  </div>
+
+  <div class="panel">
+    <div class="bar" style="justify-content:space-between">
+      <div>
+        <h2 style="margin:0">5. Saldos em 31/12/${yr} & Bens / Financiamentos no Ano (Bens e Direitos)</h2>
+        <div class="note" style="margin:2px 0 0">Informe os saldos oficiais dos extratos bancários e FGTS em 31/12/${yr} (Grupo 06 / 99 do IRPF) e confira os bens quitados ou parcelados ao longo do ano.</div>
+      </div>
+      ${pat.est.fgtsC!=null?`<button class="b g no-print" data-act="fill-est-saldos" style="font-size:12px">⚡ Preencher FGTS estimados (${lab(yr+'-12')})</button>`:''}
+    </div>
+    <div class="irpf-saldo-grid">
+      <div class="irpf-saldo-box">
+        <label>🔵 Conta / Poupança 31/12 — Cristian (R$)</label>
+        <input type="number" step="0.01" data-irpf-saldo="contaC" value="${pat.saved.contaC??''}" placeholder="Informe o extrato 31/12/${yr}">
+        ${pat.est.contaCasal!=null?`<div class="note">Saldo projetado do casal em dez/${yr.slice(2)}: <b>${brl(pat.est.contaCasal)}</b></div>`:''}
+      </div>
+      <div class="irpf-saldo-box">
+        <label>🟠 Conta / Poupança 31/12 — Pedro (R$)</label>
+        <input type="number" step="0.01" data-irpf-saldo="contaP" value="${pat.saved.contaP??''}" placeholder="Informe o extrato 31/12/${yr}">
+        <div class="note">Use o Informe de Rendimentos bancário de 31/12/${yr}.</div>
+      </div>
+      <div class="irpf-saldo-box">
+        <label>🏦 FGTS em 31/12 — Cristian (R$)</label>
+        <input type="number" step="0.01" data-irpf-saldo="fgtsC" value="${pat.saved.fgtsC??''}" placeholder="${pat.est.fgtsC!=null?pat.est.fgtsC.toFixed(2):'Saldo FGTS'}">
+        ${pat.est.fgtsC!=null?`<div class="note">Estimativa no Fluxo (31/12): <b>${brl(pat.est.fgtsC)}</b></div>`:'<div class="note">Consulte o extrato analítico no app FGTS.</div>'}
+      </div>
+      <div class="irpf-saldo-box">
+        <label>🏦 FGTS em 31/12 — Pedro (R$)</label>
+        <input type="number" step="0.01" data-irpf-saldo="fgtsP" value="${pat.saved.fgtsP??''}" placeholder="${pat.est.fgtsP!=null?pat.est.fgtsP.toFixed(2):'Saldo FGTS'}">
+        ${pat.est.fgtsP!=null?`<div class="note">Estimativa no Fluxo (31/12): <b>${brl(pat.est.fgtsP)}</b></div>`:'<div class="note">Consulte o extrato analítico no app FGTS.</div>'}
+      </div>
+      <div class="irpf-saldo-box">
+        <label>📈 Reserva / Investimentos 31/12 (${yr})</label>
+        <input type="number" step="0.01" data-irpf-saldo="invCasal" value="${pat.saved.invCasal??''}" placeholder="${pat.est.invCasal!=null?pat.est.invCasal.toFixed(2):'Aplicações 31/12'}">
+        <div class="note">${pat.est.invCasal!=null?`Estimativa planos em 31/12: <b>${brl(pat.est.invCasal)}</b>`:'CDB, Tesouro, Fundos, Ações em 31/12.'} ${pat.hasAny?`· <b>Total informado: ${brl(pat.totInformado)}</b>`:''}</div>
+      </div>
+    </div>
+    <h3 style="margin:12px 0 8px;font-size:13.5px;color:var(--petrol-dark)">Bens, Financiamentos e Parcelamentos relevantes em ${yr} (${pat.assets.length})</h3>
+    ${pat.assets.length?`<div class="tw" style="max-height:38vh"><table>
+      <thead><tr><th class="l">Bem / Obrigação</th><th class="l">Origem</th><th class="l">Categoria</th><th class="l">Titular</th><th>Meses em ${yr}</th><th>Total Pago em ${yr}</th><th class="l">Situação em 31/12/${yr}</th></tr></thead>
+      <tbody>${pat.assets.map(a=>`<tr>
+        <td class="l"><b>${esc(a.nome)}</b></td>
+        <td class="l"><span class="pill-orig">${esc(a.orig)}</span></td>
+        <td class="l">${esc(a.cat)}</td>
+        <td class="l"><span class="tag t-${a.quem}">${a.quem}${a.quem==='Conjunto'?' (50/50)':''}</span></td>
+        <td>${a.mesesYr}/12</td>
+        <td><b>${num(a.pagoYr)}</b></td>
+        <td class="l"><span class="${a.isQuit?'pos':''}">${esc(a.status)}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:`<div class="note">Nenhum financiamento, veículo, imóvel ou parcelamento de longo prazo (≥ 3x) encontrado em ${yr}.</div>`}
   </div>`;
 }
 function exportIrpfXlsx(yr){
-  const data=irpfYearData(yr),ded=irpfHealthEdu(yr,!!S.extras.irpf?.includeProjHealth),wb=XLSX.utils.book_new();
+  const data=irpfYearData(yr),ded=irpfHealthEdu(yr,!!S.extras.irpf?.includeProjHealth),pat=irpfBalancesAndAssets(yr),wb=XLSX.utils.book_new();
   const rd=v=>typeof v==='number'?+v.toFixed(2):v;
   const rows=[
     ['Mês','Status','Fatura/Contas CPF Cristian','Desp. Indiv. Pedro','50% Conjunto Pedro','Total Calculado Pedro','Transferido por Pedro (Pix)','Data do Pix','Documento / Ref'],
@@ -1419,6 +1580,22 @@ function exportIrpfXlsx(yr){
     ...ded.items.map(i=>[lab(i.ym),fmtDateBR(i.data),i.desc,i.orig,i.cat,i.nat,i.quemOrig,rd(i.valor),i.benef])
   ];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(dRows),'Saude_Educacao_'+yr);
+  const nv=k=>pat.saved[k]!==''&&pat.saved[k]!=null?rd(+pat.saved[k]):'';
+  const sRows=[
+    ['Item em 31/12/'+yr,'Valor Informado (Extrato Oficial)','Estimativa no Fluxo'],
+    ['Conta / Poupança — Cristian',nv('contaC'),pat.est.contaCasal!=null?'(Casal total: '+rd(pat.est.contaCasal)+')':''],
+    ['Conta / Poupança — Pedro',nv('contaP'),''],
+    ['FGTS — Cristian',nv('fgtsC'),pat.est.fgtsC!=null?rd(pat.est.fgtsC):''],
+    ['FGTS — Pedro',nv('fgtsP'),pat.est.fgtsP!=null?rd(pat.est.fgtsP):''],
+    ['Reserva / Investimentos',nv('invCasal'),pat.est.invCasal!=null?rd(pat.est.invCasal):''],
+    ['TOTAL INFORMADO EM 31/12/'+yr,rd(pat.totInformado),'']
+  ];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sRows),'Saldos_31_12_'+yr);
+  const bRows=[
+    ['Bem / Obrigação','Origem','Categoria','Titular','Meses no ano','Total Pago em '+yr,'Situação em 31/12/'+yr],
+    ...pat.assets.map(a=>[a.nome,a.orig,a.cat,a.quem,a.mesesYr,rd(a.pagoYr),a.status])
+  ];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(bRows),'Bens_Parcelamentos_'+yr);
   XLSX.writeFile(wb,`dossie-irpf-${yr}.xlsx`);
 }
 function rPrem(){
@@ -1500,6 +1677,13 @@ function bind(m){
   m.querySelectorAll('[data-irpf-benef]').forEach(el=>el.addEventListener('change',()=>{
     S.extras.irpfBenef=S.extras.irpfBenef||{};S.extras.irpfBenef[el.dataset.irpfBenef]=el.value;saveRender();
   }));
+  m.querySelectorAll('[data-irpf-saldo]').forEach(el=>el.addEventListener('change',()=>{
+    const yr=irpfYear||S.settings.base.slice(0,4),k=el.dataset.irpfSaldo;
+    S.extras.irpf=S.extras.irpf||{};S.extras.irpf.saldosAno=S.extras.irpf.saldosAno||{};
+    S.extras.irpf.saldosAno[yr]=S.extras.irpf.saldosAno[yr]||{};
+    S.extras.irpf.saldosAno[yr][k]=el.value===''?'':(+el.value||0);
+    saveRender();
+  }));
   const ia=m.querySelector('#irpf-ano');if(ia)ia.addEventListener('change',()=>{irpfYear=ia.value;render()});
   m.querySelectorAll('[data-s]').forEach(el=>el.addEventListener('change',()=>{
     const f=el.dataset.s;S.settings[f]=el.type==='checkbox'?el.checked:(el.type==='number'?+el.value:el.value);saveRender();
@@ -1536,6 +1720,15 @@ function act(el){
   if(a==='tog-mesdet'){const ym=el.dataset.ym;openMesDet.has(ym)?openMesDet.delete(ym):openMesDet.add(ym);render();return}
   if(a==='edit-pix'){openPixModal(el.dataset.ym,+el.dataset.calc||0,+el.dataset.card||0,+el.dataset.off||0);return}
   if(a==='quick-pay'){setPaid(el.dataset.ym||todayYM(),el.dataset.id,true);save();render();return}
+  if(a==='fill-est-saldos'){
+    const yr=irpfYear||S.settings.base.slice(0,4),pat=irpfBalancesAndAssets(yr);
+    S.extras.irpf=S.extras.irpf||{};S.extras.irpf.saldosAno=S.extras.irpf.saldosAno||{};
+    const row=S.extras.irpf.saldosAno[yr]=S.extras.irpf.saldosAno[yr]||{};
+    if(pat.est.fgtsC!=null)row.fgtsC=+pat.est.fgtsC.toFixed(2);
+    if(pat.est.fgtsP!=null)row.fgtsP=+pat.est.fgtsP.toFixed(2);
+    if(pat.est.invCasal!=null&&(row.invCasal===''||row.invCasal==null))row.invCasal=+pat.est.invCasal.toFixed(2);
+    save();render();return;
+  }
   if(a==='copy-irpf'){
     const ta=document.getElementById('irpf-txt');if(!ta)return;
     const done=()=>{const b=document.getElementById('btn-copy-irpf');if(b){b.textContent='✓ Texto copiado!';setTimeout(()=>{b.textContent='📋 Copiar texto para IRPF'},2000)}};
