@@ -12,7 +12,7 @@ Central de gestão financeira e planejamento futuro do casal (HTML + CSS + JavaS
 | `lib/` | Chart.js, SheetJS (`xlsx`) e `supabase-js` empacotados localmente |
 | `config.js` | URL do Supabase e chave `publishable` / `anon` (pública, protegida por RLS) |
 | `supabase.sql` | Criação da tabela `household` (`id = 1`) e policies de RLS para os dois e-mails |
-| `sw.js`, `manifest.webmanifest` | PWA e cache offline (`fin-v8`, estratégia network-first com atualização imediata) |
+| `sw.js`, `manifest.webmanifest` | PWA e cache offline (`fin-v9`, estratégia network-first com atualização imediata) |
 | `data.js` | Seed local opcional com dados pessoais. **Está no `.gitignore`; nunca versionar** |
 
 Os dados ficam em uma única linha (`household`, `id = 1`, coluna `data` em JSONB). O navegador mantém cópia em `localStorage`, sincroniza automaticamente com o Supabase (com detecção de conflitos de edição simultânea) e guarda até **5 pontos de restauração locais** antes de operações críticas.
@@ -37,9 +37,9 @@ A navegação é dividida em três grupos visuais para facilitar o uso diário:
 
 ### 1. Panorama
 - **Visão geral:** projeção mês a mês, resumo anual, gráficos de evolução (renda × despesas e saldo acumulado), KPIs separando claramente **Despesas Individuais (Cristian / Pedro)** e **Despesas Conjuntas (sempre 50/50)**, **Central de Contas a Vencer** (alerta automático de contas vencidas ou vencendo em até 5 dias), e exportação para `.xlsx`.
-- **Visão mensal:** detalhamento de qualquer mês (`◀ ▶`), com separação explícita entre **Despesas Individuais (100% da pessoa)** e **Despesas Conjuntas (divididas 50/50)**, resumo de pagamento por pessoa (Cartão + Fora do Cartão), **registro de liquidação Pix do acerto** (data, valor transferido e código E2E/comprovante ao marcar `Acerto ok ✓`), categorias do cartão e checklist de contas fora do cartão com alertas de vencimento.
+- **Visão mensal:** detalhamento de qualquer mês (`◀ ▶`), com separação explícita entre **Despesas Individuais (100% da pessoa)** e **Despesas Conjuntas (divididas 50/50)**, resumo de pagamento por pessoa (Cartão + Fora do Cartão), **Fechamento Oficial ("Encerrar Mês / Congelar DRE")** que preserva uma cópia imutável dos números fechados no histórico e no Dossiê IRPF, **Card de Acerto Mensal para WhatsApp & Pix Copia e Cola** (mensagem formatada com detalhamento, cópia da chave Pix e geração do BR Code EMV no valor exato), **registro de liquidação Pix do acerto** (data, valor transferido e código E2E/comprovante ao marcar `Acerto ok ✓`), categorias do cartão e checklist de contas fora do cartão com alertas de vencimento.
 - **Fluxo de caixa:** renda individual, cartão (Individual + 50% Conjunto), despesas fora do cartão (Individual + 50% Conjunto), investimentos planejados, sobra mensal, saldo em conta acumulado, FGTS individual (com rendimento de 3% a.a. + depósitos + saques) e patrimônio total.
-- **Histórico:** comparativo de faturas fechadas separando gastos individuais de Cristian, individuais de Pedro, Conjuntas (100%) e 50% Conjunto de cada um.
+- **Histórico:** comparativo de faturas fechadas separando gastos individuais de Cristian, individuais de Pedro, Conjuntas (100%) e 50% Conjunto de cada um (respeitando meses oficialmente encerrados `🔒`).
 
 ### 2. Cartão & Contas
 - **Importar / Revisar:**
@@ -57,10 +57,11 @@ A navegação é dividida em três grupos visuais para facilitar o uso diário:
   - Frequência (`Mensal` / `Anual`), início, fim, nº de parcelas e reajuste `% a.a.`.
 
 ### 3. Futuro & Config
+- **Projetos de Vida:** cards para grandes conquistas do casal (**🏠 Compra de Imóvel com FGTS conjunto**, **🚗 Carro / Veículo**, **✈️ Viagens / Férias** e outros), com barra de progresso, previsão de mês de conclusão (ETA), referência estimada de financiamento do saldo restante e integração opcional nas projeções globais (`Visão geral`, `Fluxo de caixa` e `Patrimônio`).
 - **Metas & Reserva:**
   - *Metas mensais por categoria* (cartão + fora do cartão) com barra de uso e alertas em 80% e 100%;
   - *Reserva de Emergência* com cobertura em meses de custo fixo ou despesa total e progresso visual.
-- **Investimentos & FGTS:** aportes mensais programados com juros compostos (`% a.m.`), saques planejados do FGTS (para caixa ou investimento), compras futuras parceladas e gráfico de evolução do patrimônio (Conta + FGTS + Investimentos).
+- **Investimentos & FGTS:** aportes mensais programados com juros compostos (`% a.m.`), saques planejados do FGTS (para caixa ou investimento), compras futuras parceladas e gráfico de evolução do patrimônio (Conta + FGTS + Investimentos + Projetos).
 - **Simulador (Cenários):** simula variações de renda (`%`), reajuste de moradia (`%`), redução de variáveis (`%`), despesa extra temporária e quitação antecipada de parcelamento/item sem alterar os dados oficiais.
 - **Dossiê IRPF:** módulo de conciliação fiscal anual (Decred / e-Financeira) com seletor de ano-calendário, tabela mensal comparando despesas no CPF de Cristian vs parte de Pedro vs Pix transferidos, classificação fiscal (**Reembolso/Rateio** vs **Doação** com alerta de teto estadual de ITCMD), texto pronto para copiar e colar no programa da Receita Federal, deduções de Saúde e Educação separadas por CPF (distinguindo farmácia não dedutível), **saldos em 31/12 (contas, FGTS e investimentos)** com preenchimento assistido pelo fluxo, lista de **bens e parcelamentos no ano**, impressão/PDF e exportação em `.xlsx`.
 - **Premissas:** mês base da fatura atual, horizonte de projeção do cartão, guia de atalhos de teclado, exportação/importação de backup `.json` e **Pontos de Restauração Automáticos** (últimos 5 snapshots).
