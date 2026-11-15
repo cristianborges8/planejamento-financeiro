@@ -228,6 +228,7 @@ function applyTheme(t){
   if(document.body)document.body.dataset.theme=mode;
   Object.entries(THEME_VARS[mode]).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
   localStorage.setItem('pf-theme',mode);
+  const mc=document.querySelector('meta[name="theme-color"]');if(mc)mc.setAttribute('content',mode==='dark'?'#0f1216':'#0e6b7c');
   const btn=document.getElementById('theme-btn');if(btn)btn.textContent=mode==='dark'?'☀️ Claro':'🌙 Escuro';
   if(window.Chart){
     Chart.defaults.font.family='Inter,-apple-system,Segoe UI,sans-serif';
@@ -268,11 +269,112 @@ function updateMobBar(){
   mb.innerHTML=`<span><small>Mês base</small><b>${lab(base)}</b></span>
     <span><small>Fatura atual</small><b>${brl(k0.cartao)}</b></span>
     <span><small>Sobra mês</small><b class="${cls(k0.sobra)}">${brl(k0.sobra)}</b></span>
-    <span><small>Parte Pedro</small><b>${brl(sp.payP+offP)}</b></span>`;
+    <span style="cursor:pointer" data-jump-mob="mes" title="Abrir Visão mensal"><small>Parte Pedro ▸</small><b>${brl(sp.payP+offP)}</b></span>`;
+  mb.querySelector('[data-jump-mob]')?.addEventListener('click',()=>{tab='mes';render()});
+}
+const TAB_HINTS={
+  geral:'<b>Panorama do Casal:</b> veja a evolução de receitas, despesas e saldo até o fim do horizonte. Clique em qualquer mês para abrir o acerto detalhado.',
+  mes:'<b>Acerto do Mês & Rotina:</b> confira quanto cada um paga no mês, envie o resumo no WhatsApp / Pix Copia e Cola e registre o comprovante para o IRPF.',
+  fluxo:'<b>Fluxo & Patrimônio:</b> acompanhe o caixa mensal acumulado, saldo em conta e evolução do FGTS de Cristian e Pedro.',
+  cartao:'<b>Compromissos do Cartão:</b> parcelas, fixas e assinaturas já programadas, além de estimativas opcionais (ex.: gasolina, mercado) para os próximos meses.',
+  lanc:'<b>Extrato do Cartão:</b> edite, filtre ou altere em lote quem pagou cada compra da fatura (Cristian 100%, Pedro 100% ou Conjunto 50/50).',
+  imp:'<b>Entrada de Dados:</b> importe a fatura do Itaú (.xlsx) ou extrato bancário/Pix (.ofx ou .csv) e revise os lançamentos pendentes antes de somarem nos gráficos.',
+  fora:'<b>Contas da Casa & Rendas:</b> cadastre salários, aluguel, financiamento e boletos. Preencha o dia de vencimento para receber alertas automáticos de 5 dias.',
+  hist:'<b>Memória & Auditoria:</b> compare faturas fechadas 🔒, veja sua inflação pessoal ano a ano e acompanhe quem alterou o quê na auditoria.',
+  metas:'<b>Limites por Categoria:</b> defina tetos mensais (ex.: Mercado, Alimentação) e acompanhe barras de alerta em 80% e 100%.',
+  projetos:'<b>Sonhos do Casal:</b> planeje Imóvel (usando FGTS de Cristian + Pedro), Carro ou Viagens e veja o mês previsto de realização.',
+  planos:'<b>Reserva & Investimentos:</b> configure reserva de emergência, aportes mensais programados, saques do FGTS e compras planejadas.',
+  cen:'<b>Simuladores "E se?":</b> teste aumentos/cortes, simule amortizar financiamento com FGTS ou calcule sua Independência Financeira (FIRE) sem alterar dados reais.',
+  irpf:'<b>Declaração Anual (IRPF):</b> conciliação pronta dos valores recebidos do Pedro (evita malha fina da Decred/e-Financeira), deduções por CPF e saldos em 31/12.',
+  prem:'<b>Configurações & Segurança:</b> ajuste o mês base, crie backups em JSON ou restaure pontos anteriores salvos automaticamente.'
+};
+const tabHint=t=>TAB_HINTS[t]?`<div class="tab-hint no-print"><span>💡 ${TAB_HINTS[t]}</span><button class="b g" type="button" data-act="open-guide" style="padding:3px 9px;font-size:11.5px;white-space:nowrap">❓ Como usar</button></div>`:'';
+function welcomeBanner(){
+  if(localStorage.getItem('pf-onboard-seen')==='1')return '';
+  return `<div class="welcome-banner no-print" id="welcome-banner">
+    <div style="flex:1;min-width:220px">
+      <b style="font-size:14.5px;color:var(--petrol-dark)">👋 Bem-vindo ao Portal Financeiro (Cristian & Pedro)</b>
+      <div class="note" style="margin:3px 0 0">Novo por aqui? Em 1 minuto você entende a regra de divisão (Individual vs Conjunto 50/50), onde ver o Pix do mês e o mapa completo das abas.</div>
+    </div>
+    <div class="bar" style="margin:0">
+      <button class="b" type="button" data-act="open-guide">📖 Abrir Guia Rápido</button>
+      <button class="b g" type="button" data-act="dismiss-welcome">Entendi, ocultar</button>
+    </div>
+  </div>`;
+}
+function openGuideModal(){
+  const qm=document.getElementById('qmodal');if(!qm)return;
+  const mapItems=[
+    ['geral','📊 Visão geral','Gráficos anuais, saldo futuro e todos os itens mês a mês.'],
+    ['mes','💸 Visão mensal','Valor exato do acerto, Pix Copia e Cola, WhatsApp e Burn-rate diário.'],
+    ['fora','🧾 Fora do cartão','Salários, aluguel, carro, alertas de 5 dias e check de contas pagas.'],
+    ['imp','📥 Importar / Revisar','Subir fatura do Itaú (.xlsx) ou extrato bancário/Pix (.ofx / .csv).'],
+    ['cartao','💳 Cartão','Parcelas e assinaturas futuras + estimativas opcionais de gastos.'],
+    ['lanc','🔎 Lançamentos','Editar ou filtrar compras individuais da fatura (com ações em lote).'],
+    ['projetos','🎯 Projetos de Vida','Metas de Imóvel (com FGTS conjunto), Carro e Viagens com ETA.'],
+    ['cen','🧪 Cenários & FIRE','Simular quitação/amortização de dívida, cenários de fluxo e FIRE.'],
+    ['hist','📈 Histórico & Auditoria','Faturas fechadas, termômetro de inflação pessoal e linha do tempo.'],
+    ['irpf','🧾 Dossiê IRPF','Conciliação fiscal anual, texto pronto p/ Receita e deduções por CPF.'],
+    ['planos','🏦 Planos & Reserva','Reserva de emergência, aportes em investimentos e saques de FGTS.'],
+    ['prem','⚙️ Premissas & Backups','Mês base, atalhos, backup JSON e 5 pontos de restauração.']
+  ];
+  qm.hidden=false;
+  qm.innerHTML=`<div class="qbox qbox-wide">
+    <div class="bar" style="justify-content:space-between;margin-bottom:10px">
+      <h2 style="margin:0">📖 Guia Rápido do Portal — Cristian & Pedro</h2>
+      <button class="b g" type="button" id="guide-close" style="padding:4px 10px">✕ Fechar</button>
+    </div>
+    <div class="guide-sec">
+      <h3>1. A Regra de Ouro (Como as contas são divididas)</h3>
+      <div class="guide-grid">
+        <div class="guide-card" style="border-top:3px solid #0e6b7c"><b>🔵 Individual Cristian (100%)</b>Tudo marcado como <i>Cristian</i> entra 100% na conta do Cristian.</div>
+        <div class="guide-card" style="border-top:3px solid #d9480f"><b>🟠 Individual Pedro (100%)</b>Tudo marcado como <i>Pedro</i> (incl. QuintoAndar na fatura) entra 100% na conta do Pedro.</div>
+        <div class="guide-card" style="border-top:3px solid #2b8a3e"><b>🟢 Conjunto (Sempre 50% / 50%)</b>Aluguel, carro, mercado e contas <i>Conjunto</i> são divididos exatamente meio a meio.</div>
+      </div>
+    </div>
+    <div class="guide-sec">
+      <h3>2. Rotina do Mês em 4 Passos Simples</h3>
+      <div class="guide-steps">
+        <div class="guide-step"><span class="guide-num">1</span><div><b>No dia a dia:</b> toque em <b>+ Lançamento</b> (canto inferior) para registrar um gasto avulso ou importe o extrato em <i>Importar / Revisar</i>.</div></div>
+        <div class="guide-step"><span class="guide-num">2</span><div><b>Contas a vencer:</b> confira o painel amarelo de vencimentos (próximos 5 dias) na <i>Visão geral</i> ou <i>Fora do cartão</i> e marque <b>✓ Pago</b>.</div></div>
+        <div class="guide-step"><span class="guide-num">3</span><div><b>Dia do acerto:</b> abra <i>Visão mensal</i>, copie a mensagem de <b>WhatsApp</b> ou o <b>Pix Copia e Cola</b> e marque <b>Acerto ok ✓</b> (salva no IRPF).</div></div>
+        <div class="guide-step"><span class="guide-num">4</span><div><b>Fim do mês:</b> clique em <b>🔒 Encerrar Mês</b> na <i>Visão mensal</i> para congelar uma cópia definitiva daquele mês.</div></div>
+      </div>
+    </div>
+    <div class="guide-sec">
+      <h3>3. Onde está cada coisa (clique para abrir a aba)</h3>
+      <div class="guide-map">
+        ${mapItems.map(([t,tit,desc])=>`<button type="button" class="guide-map-btn" data-guide-tab="${t}"><b>${tit}</b><span>${desc}</span></button>`).join('')}
+      </div>
+    </div>
+    <div class="guide-sec" style="margin-bottom:8px">
+      <h3>4. Instalar no Celular (PWA) & Dicas Rápidas</h3>
+      <div class="guide-card">
+        • <b>iPhone (Safari):</b> toque em <i>Compartilhar</i> (quadrado com seta) → <b>Adicionar à Tela de Início</b>.<br>
+        • <b>Android (Chrome):</b> menu <i>⋮</i> → <b>Instalar aplicativo</b> / <b>Adicionar à tela inicial</b>.<br>
+        • <b>Sincronização & Segurança:</b> ambos usam a mesma nuvem (Supabase). Se editar errado, vá em <i>Premissas → Pontos de Restauração</i> ou confira tudo em <i>Histórico → Auditoria</i>.<br>
+        • <b>Atalhos (PC):</b> <code>Alt+N</code> (novo lançamento) · <code>Alt+T</code> (tema escuro/claro) · <code>Esc</code> (fechar modal).
+      </div>
+    </div>
+    <div class="bar" style="justify-content:flex-end;margin:0">
+      <button class="b" type="button" id="guide-done">Entendi, começar a usar ✓</button>
+    </div>
+  </div>`;
+  const close=()=>{localStorage.setItem('pf-onboard-seen','1');qm.hidden=true;render()};
+  qm.querySelector('#guide-close').onclick=close;
+  qm.querySelector('#guide-done').onclick=close;
+  qm.onclick=e=>{if(e.target===qm)close()};
+  qm.querySelectorAll('[data-guide-tab]').forEach(b=>b.addEventListener('click',()=>{
+    localStorage.setItem('pf-onboard-seen','1');
+    tab=b.dataset.guideTab;
+    qm.hidden=true;
+    render();
+  }));
 }
 function render(){
   destroyCharts();
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  document.querySelectorAll('#mob-nav button[data-mtab]').forEach(b=>b.classList.toggle('on',b.dataset.mtab===tab));
   const m=document.getElementById('main');
   const fc=captureFocus(m),scrolls=[...m.querySelectorAll('.tw')].map(el=>[el.scrollTop,el.scrollLeft]);
   const nr=S.tx.filter(x=>x.rev).length;
@@ -280,7 +382,8 @@ function render(){
   document.getElementById('meta').textContent=(mt.lastImport?`Última importação: fatura ${lab(mt.lastImport.fatura)} em ${fd(mt.lastImport.at)}`:'Nenhuma importação ainda')+(mt.updatedAt?` · Atualizado em ${fd(mt.updatedAt)}${mt.updatedBy?` por ${mt.updatedBy}`:''}`:'');
   document.querySelector('[data-tab=imp]').textContent='Importar / Revisar'+(nr?` (${nr})`:'');
   updateMobBar();
-  m.innerHTML={metas:rMetas,projetos:rProjetos,planos:rPlanos,cen:rCen,fluxo:rFluxo,geral:rGeral,mes:rMes,cartao:rCartao,lanc:rLanc,fora:rFora,irpf:rIrpf,prem:rPrem,imp:rImp,hist:rHist}[tab]();
+  const bodyHtml={metas:rMetas,projetos:rProjetos,planos:rPlanos,cen:rCen,fluxo:rFluxo,geral:rGeral,mes:rMes,cartao:rCartao,lanc:rLanc,fora:rFora,irpf:rIrpf,prem:rPrem,imp:rImp,hist:rHist}[tab]();
+  m.innerHTML=(tab==='geral'?welcomeBanner():'')+tabHint(tab)+bodyHtml;
   if(tab==='geral')drawGeral();
   if(tab==='fluxo')drawFluxo();
   if(tab==='planos')drawPlanos();
@@ -289,6 +392,7 @@ function render(){
   bind(m);
   m.querySelectorAll('.tw').forEach((el,i)=>{if(scrolls[i]){el.scrollTop=scrolls[i][0];el.scrollLeft=scrolls[i][1]}});
   restoreFocus(m,fc);
+  try{document.querySelector('#tabs button.on')?.scrollIntoView({inline:'nearest',block:'nearest'})}catch(e){}
 }
 
 function dueStatus(o,ym){
@@ -721,7 +825,7 @@ function rGeral(){
     const payPVals=RRows.map(r=>r.byQ.Pedro+r.byQ.Conjunto*0.5),payPAll=payPVals.reduce((a,b)=>a+b,0);
     mainTable=`<div class="note" style="margin-bottom:10px">Cada bloco abaixo lista <b>exatamente quais itens entram na soma</b> de cada mês, seguido pela <b>linha de subtotal (<code>= SOMA</code>)</b> correspondente. Traços (<code>–</code>) indicam meses sem cobrança daquele item.</div>
     <div class="tw"><table>
-      <thead><tr><th class="l" style="min-width:250px">Item / Linha que entra na soma</th><th class="l">Origem / Regra</th>${RRows.map(r=>`<th class="${r.ym===base?'grp-tot':''}"><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a><br><small style="font-weight:400;text-transform:none">${r.k<0?'real':r.k===0?'atual':'proj.'}</small></th>`).join('')}<th class="bl">Soma Período</th></tr></thead>
+      <thead><tr><th class="l col-item-hdr">Item / Linha que entra na soma</th><th class="l">Origem / Regra</th>${RRows.map(r=>`<th class="${r.ym===base?'grp-tot':''}"><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a><br><small style="font-weight:400;text-transform:none">${r.k<0?'real':r.k===0?'atual':'proj.'}</small></th>`).join('')}<th class="bl">Soma Período</th></tr></thead>
       <tbody>
         <tr class="sec-hdr sec-inc"><td colspan="${cols}">💰 1. RECEITAS (ENTRADAS MENSAIS)</td></tr>
         ${M.incItems.map(it=>`<tr class="item-row"><td class="l"><b>${esc(it.nome)}</b> <span class="tag t-${it.quem}">${it.quem}</span></td><td class="l"><span class="pill-orig">${it.orig}</span></td>${it.vals.map(v=>`<td>${cellN(v)}</td>`).join('')}<td class="bl"><b>${num(it.tot)}</b></td></tr>`).join('')}
@@ -1468,8 +1572,8 @@ function rAmort(){
       ${fgtsTot>0?`<button class="b g" data-act="amort-use-fgts" data-val="${fgtsTot.toFixed(2)}">⚡ Simular usando FGTS (${brl(fgtsTot)})</button>`:''}
     </div>
     ${loans.length?`<div class="bar" style="margin-bottom:10px">
-      <label class="note" style="display:inline-flex;align-items:center;gap:6px"><b>Carregar de Fora do cartão:</b>
-        <select id="amort-off-sel"><option value="">– Selecione um contrato/parcelamento (ou edite manualmente) –</option>
+      <label class="note" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;max-width:100%"><b>Carregar de Fora do cartão:</b>
+        <select id="amort-off-sel" style="max-width:100%"><option value="">– Selecione um contrato/parcelamento (ou edite manualmente) –</option>
         ${loans.map(o=>`<option value="${o.id}" ${String(a.offId)===String(o.id)?'selected':''}>${esc(o.nome)} (${brl(offV(o,S.settings.base))}/mês${o.np?` · ${o.np}x`:''})</option>`).join('')}
         </select>
       </label>
@@ -1561,7 +1665,7 @@ function rFire(){
       <label>Aporte mensal do casal (R$)<input type="number" step="100" data-fire="aporteMensal" value="${f.aporteMensal!==''&&f.aporteMensal!=null&&+f.aporteMensal>0?f.aporteMensal:''}" placeholder="${sim.def.aporteCap} (sobra)"></label>
       <label>Patrimônio investido hoje (R$)<input type="number" step="1000" data-fire="patrimonioAtual" value="${f.patrimonioAtual!==''&&f.patrimonioAtual!=null?f.patrimonioAtual:''}" placeholder="${Math.round(sim.def.patrLiq+(f.incluirFgts!==false?sim.def.fgtsHoje:0))}"></label>
       <label>Rentabilidade real (% a.a. acima da inflação)<input type="number" step="0.2" data-fire="rendRealAnual" value="${f.rendRealAnual??5.5}"></label>
-      <label>Taxa de retirada segura (% a.a. / SWR)<input type="number" step="0.2" min="1" max="10" data-fire="swr" value="${f.swr??4.0}"></label>
+      <label title="Safe Withdrawal Rate: % do patrimônio sacado por ano sem esgotá-lo (4% equivale a 25× o gasto anual)">Taxa de retirada segura (% a.a. — 4% = 25× gasto anual)<input type="number" step="0.2" min="1" max="10" data-fire="swr" value="${f.swr??4.0}"></label>
       <label>Idade de referência hoje<input type="number" step="1" min="18" max="90" data-fire="idadeAtual" value="${f.idadeAtual??32}"></label>
     </div>
     <label class="note" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" data-fire="incluirFgts" ${f.incluirFgts!==false?'checked':''}> Incluir saldo atual de FGTS (${brl(sim.def.fgtsHoje)}) no patrimônio inicial</label>
@@ -2171,7 +2275,11 @@ function exportIrpfXlsx(yr){
 }
 function rPrem(){
   const s=S.settings,snaps=loadSnaps(),fd=t=>new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
-  return `<div class="panel"><h2>Premissas gerais</h2><div class="grid2">
+  return `<div class="panel"><h2>Ajuda, Guia de Uso &amp; Celular</h2>
+   <div class="note" style="margin-bottom:10px">Novo por aqui? O guia interativo explica a <b>Regra de Ouro (100% Individual × 50/50 Conjunto)</b>, a rotina mensal em 4 passos, o mapa de todas as abas e como instalar o app no iPhone/Android.</div>
+   <div class="bar"><button class="b" type="button" data-act="open-guide">📖 Abrir Guia Rápido &amp; Instalação no Celular</button>
+    <button class="b g" type="button" data-act="reset-welcome">Mostrar banner de boas-vindas na Visão geral</button></div></div>
+  <div class="panel"><h2>Premissas gerais</h2><div class="grid2">
    <label>Mês da fatura atual (base)</label><input type="month" data-s="base" value="${s.base}">
    <label>Meses projetados no Cartão</label><input type="number" data-s="horizon" value="${s.horizon}" min="1" max="36">
   </div>
@@ -2367,6 +2475,9 @@ function copyClip(text,btn,okMsg){
 }
 function act(el){
   const a=el.dataset.act,id=+(el.closest('tr')?.dataset.id||0),vid=+(el.closest('tr')?.dataset.vid||0),snapId=+(el.closest('tr')?.dataset.snap||0);
+  if(a==='open-guide'){openGuideModal();return}
+  if(a==='dismiss-welcome'){localStorage.setItem('pf-onboard-seen','1');render();return}
+  if(a==='reset-welcome'){localStorage.removeItem('pf-onboard-seen');tab='geral';SEL.clear();render();return}
   if(a==='gmode'){geralMode=el.dataset.mode||'linhas';render();return}
   if(a==='cenmode'){cenMode=el.dataset.mode||'cen';render();return}
   if(a==='histmode'){histMode=el.dataset.mode||'faturas';render();return}
@@ -3043,7 +3154,7 @@ function rHist(){
   const selList=selFr?(selFr.items?.card||[]):S.tx.filter(x=>x.fatura===sel&&live(x));
   selList.forEach(x=>{const c=cat[x.cat]=cat[x.cat]||{Cristian:0,Pedro:0,Conjunto:0,t:0};c[x.quem]=(c[x.quem]||0)+x.valor;c.t+=x.valor});
   const catRows=Object.entries(cat).sort((a,b)=>b[1].t-a[1].t);
-  return `${histNav()}<div class="panel"><h2>Histórico por fatura</h2><div class="bar">${pctBox()}</div><div class="row" style="margin-bottom:10px"><div style="flex:1;min-width:420px"><canvas id="c3"></canvas></div></div>
+  return `${histNav()}<div class="panel"><h2>Histórico por fatura</h2><div class="bar">${pctBox()}</div><div class="row" style="margin-bottom:10px"><div style="flex:1;min-width:260px"><canvas id="c3"></canvas></div></div>
   <div class="tw"><table><tr><th class="l">Fatura</th><th>Total</th><th>Indiv. Cristian</th><th>Indiv. Pedro</th><th>Conjuntas (100%)</th><th>50% Conj. (cada)</th><th>Cristian paga</th><th>Pedro paga</th><th>Parcelas</th><th>Fixas</th><th>Assinaturas</th><th>Variáveis</th></tr>
   ${fats.map(f=>{const s=histSplit(f),g=grp(f);return `<tr><td class="l"><a href="#" data-mes="${f}">${lab(f)}</a>${s.frozen?' 🔒':''}</td><td><b>${num(s.total)}</b></td><td>${num(s.Cristian)}</td><td>${num(s.Pedro)}</td><td>${num(s.Conjunto)}</td><td>${num(s.Conjunto*0.5)}</td><td><b>${num(s.payC)}</b></td><td><b>${num(s.payP)}</b></td><td>${num(g.parcelas)}</td><td>${num(g.fixas)}</td><td>${num(g.assinaturas)}</td><td>${num(g.variaveis)}</td></tr>`}).join('')}
   </table></div><div class="note">"Paga" = despesas individuais (100%) + 50% das despesas conjuntas. Itens "Ignorar" ficam de fora. Meses com 🔒 usam o fechamento oficial congelado.</div></div>
@@ -3061,6 +3172,9 @@ function drawHist(){
 
 document.getElementById('view').addEventListener('change',e=>{view=e.target.value;render()});
 document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b){tab=b.dataset.tab;SEL.clear();render()}});
+document.getElementById('mob-nav')?.addEventListener('click',e=>{const b=e.target.closest('[data-mtab]');if(b){tab=b.dataset.mtab;SEL.clear();render()}});
+document.getElementById('help-btn')?.addEventListener('click',()=>openGuideModal());
+document.getElementById('mob-help-btn')?.addEventListener('click',()=>openGuideModal());
 document.getElementById('theme-btn')?.addEventListener('click',()=>{
   applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
   render();
@@ -3190,10 +3304,12 @@ async function pull(first){
   if(!document.activeElement||!['INPUT','SELECT'].includes(document.activeElement.tagName))render();
 }
 function loginScreen(msg){
-  document.getElementById('main').innerHTML=`<div class="panel" style="max-width:360px;margin:60px auto"><h2>Entrar</h2>
-  ${msg?`<div class="warn">${esc(msg)}</div>`:''}
-  <div class="grid2" style="grid-template-columns:1fr"><input id="em" type="email" placeholder="E-mail" style="width:100%"><input id="pw" type="password" placeholder="Senha" style="width:100%">
-  <button class="b" id="go">Entrar</button><button class="b g" id="su">Criar conta</button></div></div>`;
+  document.getElementById('main').innerHTML=`<div class="panel" style="max-width:400px;margin:28px auto">
+  <h2>Portal Financeiro — Cristian &amp; Pedro</h2>
+  <div class="note" style="margin-bottom:12px">Acesse com seu e-mail autorizado para ver e editar os dados sincronizados na nuvem em tempo real entre celular e computador.</div>
+  ${msg?`<div class="warn" style="margin-bottom:10px">${esc(msg)}</div>`:''}
+  <div class="grid2" style="grid-template-columns:1fr;gap:8px"><input id="em" type="email" autocomplete="email" placeholder="Seu e-mail" style="width:100%"><input id="pw" type="password" autocomplete="current-password" placeholder="Sua senha" style="width:100%">
+  <button class="b" id="go">Entrar no portal</button><button class="b g" id="su">Criar conta (primeiro acesso)</button></div></div>`;
   const cred=()=>({email:document.getElementById('em').value.trim(),password:document.getElementById('pw').value});
   document.getElementById('go').onclick=async()=>{const {error}=await sb.auth.signInWithPassword(cred());error?loginScreen(error.message):start()};
   document.getElementById('su').onclick=async()=>{const {error}=await sb.auth.signUp(cred());loginScreen(error?error.message:'Conta criada. Confirme o e-mail (se exigido) e clique em Entrar.')};
@@ -3204,7 +3320,7 @@ async function start(){
   const em=data.session.user?.email||'';
   currentUser=/pedro/i.test(em)?'Pedro':/cristian/i.test(em)?'Cristian':(em.split('@')[0]||'Usuário');
   if(!document.getElementById('usr-exit')){
-    const u=document.createElement('span');u.className='note';u.style.color='#cfe0f1';u.textContent=`👤 ${currentUser}`;
+    const u=document.createElement('span');u.className='tag '+(currentUser==='Pedro'?'t-Pedro':'t-Cristian');u.textContent=`👤 ${currentUser}`;
     const b=document.createElement('button');b.id='usr-exit';b.textContent='Sair';b.className='b g';b.onclick=async()=>{await sb.auth.signOut();location.reload()};
     document.getElementById('sync').after(u,b);
   }

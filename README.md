@@ -1,21 +1,34 @@
 # Planejamento Financeiro (Cristian & Pedro)
 
-Central de gestão financeira e planejamento futuro do casal (HTML + CSS + JavaScript puro, sem etapa de build): fatura do cartão Itaú, despesas e receitas fora do cartão, rateio inteligente, metas, reserva de emergência, investimentos, FGTS e simulador de cenários. Funciona como **PWA** (instalável no celular e desktop, com modo claro/escuro) e roda no **GitHub Pages**, com sincronização em nuvem via **Supabase** protegida por login e Row Level Security (RLS).
+Central de gestão financeira e planejamento futuro do casal (HTML + CSS + JavaScript puro, sem etapa de build): fatura do cartão Itaú, extrato bancário/Pix, despesas e receitas fora do cartão, rateio inteligente, central de contas a vencer, projetos de vida, simuladores e dossiê anual de IRPF. Funciona como **PWA** (instalável no celular e desktop, com modo claro/escuro e navegação dedicada para mobile) e roda no **GitHub Pages**, com sincronização em nuvem via **Supabase** protegida por login e Row Level Security (RLS).
+
+> **Novo no portal (ou enviando para o Pedro)?** Consulte o **[Guia Rápido de Uso (`GUIA_DE_USO.md`)](GUIA_DE_USO.md)** — manual em linguagem simples com passo a passo para celular, regra de divisão, rotina mensal, mapa de abas e perguntas frequentes — ou clique diretamente em **`❓ Guia`** dentro do próprio aplicativo.
 
 ---
 
-## Arquitetura
+## Arquitetura e Organização do Projeto
 
-| Arquivo | Descrição |
+| Arquivo / Pasta | Descrição |
 |---|---|
-| `index.html`, `style.css`, `app.js` | Interface responsiva (claro/escuro), motor de projeção e toda a lógica (sem framework) |
-| `lib/` | Chart.js, SheetJS (`xlsx`) e `supabase-js` empacotados localmente |
+| `index.html`, `style.css`, `app.js` | Interface responsiva (desktop + mobile bottom-nav, claro/escuro), motor de projeção e toda a lógica (sem framework) |
+| `GUIA_DE_USO.md` | Manual prático de usabilidade para usuários finais (focado em uso diário e onboarding do Pedro) |
+| `lib/` | Chart.js, SheetJS (`xlsx`) e `supabase-js` empacotados localmente (zero dependências CDN em runtime) |
 | `config.js` | URL do Supabase e chave `publishable` / `anon` (pública, protegida por RLS) |
 | `supabase.sql` | Criação da tabela `household` (`id = 1`) e policies de RLS para os dois e-mails |
-| `sw.js`, `manifest.webmanifest` | PWA e cache offline (`fin-v10`, estratégia network-first com atualização imediata) |
+| `sw.js`, `manifest.webmanifest`, `icon.svg` | PWA e cache offline (`fin-v11`, estratégia network-first com atualização imediata) |
 | `data.js` | Seed local opcional com dados pessoais. **Está no `.gitignore`; nunca versionar** |
 
-Os dados ficam em uma única linha (`household`, `id = 1`, coluna `data` em JSONB). O navegador mantém cópia em `localStorage`, sincroniza automaticamente com o Supabase (com detecção de conflitos de edição simultânea) e guarda até **5 pontos de restauração locais** antes de operações críticas.
+### Estrutura do Documento em Nuvem (`household.data` JSONB)
+
+Os dados ficam em uma única linha (`household`, `id = 1`, coluna `data` em JSONB). O navegador mantém cópia em `localStorage` (`pf_v1`), sincroniza automaticamente com o Supabase (com detecção de conflitos de edição simultânea) e guarda até **5 pontos de restauração locais** antes de operações críticas:
+
+- `tx[]` — Lançamentos de cartão e extrato importados/manuais (`id`, `data`, `desc`, `valor`, `tipo`, `cat`, `quem`, `fatura`, `cur`, `tot`, `fim`, `ativo`, `rev`);
+- `off[]` — Receitas e contas fora do cartão (`nome`, `quem`, `kind`, `valor`, `venc`, `inicio`, `fim`, `freq`, `reaj`, `np`, `cat`);
+- `settings` — Mês base (`base`), horizonte (`horizon`, `flowEnd`), saldo inicial, FGTS, reserva de emergência, investimentos, saques FGTS e estimativas futuras opcionais (`varItems`, `includeVar`);
+- `rules` — Regras memorizadas por estabelecimento (`key(desc)` → `quem`, `tipo`, `cat`, `fim`);
+- `paid` — Status mensal de contas pagas, fatura e registro de acerto (`paid[ym][id|fatura|acerto]`);
+- `extras` — Módulos estendidos: `metas`, `projetos`, `cen` (fluxo), `amort`, `fire`, `closedMonths` (fechamentos oficiais congelados `🔒`), `pixSettlements` (comprovantes/E2E para IRPF), `pixConfig`, `irpf` (classificação Reembolso vs Doação e saldos 31/12) e `auditLog` (últimos 300 eventos);
+- `meta` — Metadados de última importação e última atualização (`updatedAt`, `updatedBy`).
 
 ---
 
@@ -93,14 +106,21 @@ A navegação é dividida em três grupos visuais para facilitar o uso diário:
 
 ---
 
-## Usabilidade, Tema Escuro e Atalhos
+## Usabilidade, Mobile, Onboarding e Atalhos
 
+- **Onboarding & Guia Integrado (`❓ Guia`):**
+  - Banner de boas-vindas na primeira visita (`pf-onboard-seen`), barra contextual de 1 linha (`💡`) explicando o propósito de cada aba e botão **`❓ Guia`** no cabeçalho, barra mobile e aba *Premissas* abrindo o **Guia Rápido Interativo** (Regra de Ouro 100% × 50/50, rotina em 4 passos, mapa clicável das abas e instruções de instalação no iPhone/Android).
+  - Para usuários finais (especialmente o Pedro), consulte também [`GUIA_DE_USO.md`](GUIA_DE_USO.md).
+- **Otimização Mobile & PWA (`<= 768px`):**
+  - Barra inferior fixa (`#mob-nav`) com acesso em 1 toque para *Geral*, *Mês/Pix*, *Contas*, *Projetos* e *Guia*;
+  - Barra de resumo rápido no topo (`Mês base`, `Fatura atual`, `Sobra mês` e `Parte Pedro ▸` clicável);
+  - Layout fluido sem overflow horizontal em telas de `375px`, campos com `font-size: 16px` (evita zoom automático no iOS Safari) e respeito às áreas seguras (`env(safe-area-inset-bottom)`).
 - **Botão Flutuante (`+ Lançamento`)**: no canto inferior direito (mobile e desktop) para lançar rapidamente uma despesa de **Cartão**, **Fora do Cartão** ou **Estimativa futura** em poucos segundos.
-- **Modo Escuro (`🌙 Escuro` / `☀️ Claro`)**: alternância imediata no cabeçalho, com persistência em `localStorage` (`fin_theme`).
+- **Modo Escuro (`🌙 Escuro` / `☀️ Claro`)**: alternância imediata no cabeçalho (sincronizando `<meta name="theme-color">`), com persistência em `localStorage` (`pf-theme`).
 - **Atalhos de Teclado**:
   - `Alt + N`: abrir modal de novo lançamento rápido;
   - `Alt + T`: alternar entre modo claro e modo escuro;
-  - `Esc`: fechar modal rápido ou limpar seleção em lote nas tabelas.
+  - `Esc`: fechar modal rápido/guia ou limpar seleção em lote nas tabelas.
 
 ---
 

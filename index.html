@@ -3,28 +3,35 @@
 <head>
 <meta charset="utf-8">
 <title>Planejamento financeiro – Cristian & Pedro</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="style.css?v=10">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="style.css?v=11">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
 <meta name="theme-color" content="#0e6b7c">
 </head>
 <body>
 <header>
   <h1>Planejamento financeiro</h1>
   <div class="view">
-    Visão:
-    <select id="view">
+    <span class="view-lbl">Visão:</span>
+    <select id="view" aria-label="Selecionar visão de gastos">
       <option value="casal">Casal (tudo)</option>
-      <option value="cristian">Cristian (individual + 50% conjunto)</option>
-      <option value="pedro">Pedro (individual + 50% conjunto)</option>
+      <option value="cristian">Cristian (indiv. + 50%)</option>
+      <option value="pedro">Pedro (indiv. + 50%)</option>
       <option value="conjunto">Só Conjunto (100%)</option>
     </select>
   </div>
   <div id="sync" class="note"></div>
-  <button id="theme-btn" class="b g" title="Alternar tema claro/escuro (Alt+T)" style="margin-left:auto;padding:5px 11px;font-size:12px">🌙 Escuro</button>
+  <div class="hdr-actions">
+    <button id="help-btn" class="b g" type="button" title="Como usar o portal — Guia rápido para Cristian & Pedro">❓ Guia</button>
+    <button id="theme-btn" class="b g" type="button" title="Alternar tema claro/escuro (Alt+T)">🌙 Escuro</button>
+  </div>
   <div id="meta" class="note"></div>
-  <nav id="tabs">
+  <nav id="tabs" aria-label="Seções do portal">
     <div class="tgrp">
       <small>Panorama</small>
       <button data-tab="geral" class="on">Visão geral</button>
@@ -52,13 +59,20 @@
 </header>
 <div id="mob-bar" class="mob-bar"></div>
 <main id="main"></main>
-<button id="fab-add" class="fab" title="Novo lançamento rápido (Alt+N)">+ Lançamento</button>
+<button id="fab-add" class="fab" type="button" title="Novo lançamento rápido (Alt+N)">+ Lançamento</button>
+<nav id="mob-nav" class="mob-nav" aria-label="Atalhos rápidos no celular">
+  <button type="button" data-mtab="geral" class="on"><span>📊</span><small>Geral</small></button>
+  <button type="button" data-mtab="mes"><span>💸</span><small>Mês/Pix</small></button>
+  <button type="button" data-mtab="fora"><span>🧾</span><small>Contas</small></button>
+  <button type="button" data-mtab="projetos"><span>🎯</span><small>Projetos</small></button>
+  <button type="button" id="mob-help-btn"><span>❓</span><small>Guia</small></button>
+</nav>
 <div id="qmodal" class="qmodal" hidden></div>
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/chart.umd.js"></script>
 <script src="config.js"></script>
 <script src="lib/supabase.js"></script>
 <script src="data.js"></script>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>
