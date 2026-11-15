@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
 <link rel="apple-touch-icon" href="icon.svg">
@@ -15,6 +15,7 @@
 </head>
 <body>
 <header>
+  <button id="menu-btn" class="icon-btn" type="button" title="Abrir ou recolher menu lateral" aria-label="Abrir ou recolher menu" aria-expanded="false">☰</button>
   <h1>Planejamento financeiro</h1>
   <div class="view">
     <span class="view-lbl">Visão:</span>
@@ -25,47 +26,62 @@
       <option value="conjunto">Só Conjunto (100%)</option>
     </select>
   </div>
-  <div id="sync" class="note"></div>
-  <div class="hdr-actions">
-    <button id="help-btn" class="b g" type="button" title="Como usar o portal — Guia rápido para Cristian & Pedro">❓ Guia</button>
-    <button id="theme-btn" class="b g" type="button" title="Alternar tema claro/escuro (Alt+T)">🌙 Escuro</button>
+  <div class="hdr-right">
+    <div id="sync" class="note"></div>
+    <div class="hdr-actions">
+      <button id="help-btn" class="b g" type="button" title="Como usar o portal — Guia rápido para Cristian & Pedro"><span class="ico">❓</span><span class="lbl"> Guia</span></button>
+      <button id="theme-btn" class="b g" type="button" title="Alternar tema claro/escuro (Alt+T)"><span class="ico">🌙</span><span class="lbl"> Escuro</span></button>
+    </div>
   </div>
-  <div id="meta" class="note"></div>
+</header>
+<div id="nav-backdrop" class="nav-backdrop" hidden></div>
+<div class="app-shell">
   <nav id="tabs" aria-label="Seções do portal">
+    <div class="nav-drawer-hdr">
+      <b>Menu do Portal</b>
+      <button id="nav-close" class="b g" type="button" style="padding:4px 10px;font-size:12px">✕ Fechar</button>
+    </div>
+    <div id="drawer-user" class="drawer-user" hidden></div>
     <div class="tgrp">
       <small>Panorama</small>
-      <button data-tab="geral" class="on">Visão geral</button>
-      <button data-tab="mes">Visão mensal</button>
-      <button data-tab="fluxo">Fluxo de caixa</button>
+      <button data-tab="geral" class="on">📊 Visão geral</button>
+      <button data-tab="mes">💸 Visão mensal</button>
+      <button data-tab="fluxo">💰 Fluxo de caixa</button>
     </div>
     <div class="tgrp">
-      <small>Cartão & Contas</small>
-      <button data-tab="cartao">Cartão</button>
-      <button data-tab="lanc">Lançamentos</button>
-      <button data-tab="imp">Importar / Revisar</button>
-      <button data-tab="fora">Fora do cartão</button>
-      <button data-tab="hist">Histórico</button>
+      <small>Cartão &amp; Contas</small>
+      <button data-tab="cartao">💳 Cartão</button>
+      <button data-tab="lanc">🔎 Lançamentos</button>
+      <button data-tab="imp">📥 Importar / Revisar</button>
+      <button data-tab="fora">🧾 Fora do cartão</button>
+      <button data-tab="hist">📈 Histórico</button>
     </div>
     <div class="tgrp">
-      <small>Futuro & Config</small>
-      <button data-tab="metas">Metas</button>
-      <button data-tab="projetos">Projetos de Vida</button>
-      <button data-tab="planos">Planos</button>
-      <button data-tab="cen">Cenários</button>
-      <button data-tab="irpf">Dossiê IRPF</button>
-      <button data-tab="prem">Premissas</button>
+      <small>Futuro &amp; Config</small>
+      <button data-tab="metas">🎯 Metas</button>
+      <button data-tab="projetos">🏠 Projetos de Vida</button>
+      <button data-tab="planos">🏦 Planos</button>
+      <button data-tab="cen">🧪 Cenários</button>
+      <button data-tab="irpf">🧾 Dossiê IRPF</button>
+      <button data-tab="prem">⚙️ Premissas</button>
+    </div>
+    <div class="nav-drawer-ftr">
+      <button id="drawer-guide-btn" class="b g" type="button" style="width:100%;justify-content:center;font-size:12px;margin-bottom:8px">❓ Guia Rápido de Uso</button>
+      <div id="meta" class="note"></div>
     </div>
   </nav>
-</header>
-<div id="mob-bar" class="mob-bar"></div>
-<main id="main"></main>
+  <div class="workspace">
+    <div id="mob-bar" class="mob-bar"></div>
+    <main id="main"></main>
+  </div>
+</div>
 <button id="fab-add" class="fab" type="button" title="Novo lançamento rápido (Alt+N)">+ Lançamento</button>
 <nav id="mob-nav" class="mob-nav" aria-label="Atalhos rápidos no celular">
   <button type="button" data-mtab="geral" class="on"><span>📊</span><small>Geral</small></button>
   <button type="button" data-mtab="mes"><span>💸</span><small>Mês/Pix</small></button>
   <button type="button" data-mtab="fora"><span>🧾</span><small>Contas</small></button>
   <button type="button" data-mtab="projetos"><span>🎯</span><small>Projetos</small></button>
-  <button type="button" id="mob-help-btn"><span>❓</span><small>Guia</small></button>
+  <button type="button" id="mob-menu-btn"><span>☰</span><small>Menu</small></button>
 </nav>
 <div id="qmodal" class="qmodal" hidden></div>
 <script src="lib/xlsx.full.min.js"></script>
@@ -73,6 +89,6 @@
 <script src="config.js"></script>
 <script src="lib/supabase.js"></script>
 <script src="data.js"></script>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

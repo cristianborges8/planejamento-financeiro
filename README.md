@@ -15,7 +15,7 @@ Central de gestão financeira e planejamento futuro do casal (HTML + CSS + JavaS
 | `lib/` | Chart.js, SheetJS (`xlsx`) e `supabase-js` empacotados localmente (zero dependências CDN em runtime) |
 | `config.js` | URL do Supabase e chave `publishable` / `anon` (pública, protegida por RLS) |
 | `supabase.sql` | Criação da tabela `household` (`id = 1`) e policies de RLS para os dois e-mails |
-| `sw.js`, `manifest.webmanifest`, `icon.svg` | PWA e cache offline (`fin-v11`, estratégia network-first com atualização imediata) |
+| `sw.js`, `manifest.webmanifest`, `icon.svg` | PWA e cache offline (`fin-v12`, estratégia network-first com atualização imediata) |
 | `data.js` | Seed local opcional com dados pessoais. **Está no `.gitignore`; nunca versionar** |
 
 ### Estrutura do Documento em Nuvem (`household.data` JSONB)
@@ -111,9 +111,10 @@ A navegação é dividida em três grupos visuais para facilitar o uso diário:
 - **Onboarding & Guia Integrado (`❓ Guia`):**
   - Banner de boas-vindas na primeira visita (`pf-onboard-seen`), barra contextual de 1 linha (`💡`) explicando o propósito de cada aba e botão **`❓ Guia`** no cabeçalho, barra mobile e aba *Premissas* abrindo o **Guia Rápido Interativo** (Regra de Ouro 100% × 50/50, rotina em 4 passos, mapa clicável das abas e instruções de instalação no iPhone/Android).
   - Para usuários finais (especialmente o Pedro), consulte também [`GUIA_DE_USO.md`](GUIA_DE_USO.md).
-- **Otimização Mobile & PWA (`<= 768px`):**
-  - Barra inferior fixa (`#mob-nav`) com acesso em 1 toque para *Geral*, *Mês/Pix*, *Contas*, *Projetos* e *Guia*;
-  - Barra de resumo rápido no topo (`Mês base`, `Fatura atual`, `Sobra mês` e `Parte Pedro ▸` clicável);
+- **Navegação sem deslize (Desktop & Mobile):**
+  - Cabeçalho compacto de **1 única linha** (~50px), liberando área útil vertical sem empilhar abas nem exigir rolagem horizontal;
+  - No desktop (`>= 1024px`), barra lateral esquerda com as 14 seções agrupadas e botão `☰` para recolher/expandir quando desejar largura máxima nas tabelas;
+  - No mobile/tablet (`< 1024px`), gaveta lateral deslizante (`☰` no topo ou `Menu` no rodapé) + barra inferior fixa (`#mob-nav`: *Geral*, *Mês/Pix*, *Contas*, *Projetos* e *Menu*) + barra de resumo rápido (`Mês base`, `Fatura atual`, `Sobra mês` e `Parte Pedro ▸` clicável);
   - Layout fluido sem overflow horizontal em telas de `375px`, campos com `font-size: 16px` (evita zoom automático no iOS Safari) e respeito às áreas seguras (`env(safe-area-inset-bottom)`).
 - **Botão Flutuante (`+ Lançamento`)**: no canto inferior direito (mobile e desktop) para lançar rapidamente uma despesa de **Cartão**, **Fora do Cartão** ou **Estimativa futura** em poucos segundos.
 - **Modo Escuro (`🌙 Escuro` / `☀️ Claro`)**: alternância imediata no cabeçalho (sincronizando `<meta name="theme-color">`), com persistência em `localStorage` (`pf-theme`).

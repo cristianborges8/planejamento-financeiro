@@ -229,7 +229,7 @@ function applyTheme(t){
   Object.entries(THEME_VARS[mode]).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
   localStorage.setItem('pf-theme',mode);
   const mc=document.querySelector('meta[name="theme-color"]');if(mc)mc.setAttribute('content',mode==='dark'?'#0f1216':'#0e6b7c');
-  const btn=document.getElementById('theme-btn');if(btn)btn.textContent=mode==='dark'?'☀️ Claro':'🌙 Escuro';
+  const btn=document.getElementById('theme-btn');if(btn)btn.innerHTML=mode==='dark'?'<span class="ico">☀️</span><span class="lbl"> Claro</span>':'<span class="ico">🌙</span><span class="lbl"> Escuro</span>';
   if(window.Chart){
     Chart.defaults.font.family='Inter,-apple-system,Segoe UI,sans-serif';
     Chart.defaults.color=mode==='dark'?'#9aa3b0':'#707782';
@@ -380,7 +380,7 @@ function render(){
   const nr=S.tx.filter(x=>x.rev).length;
   const mt=S.meta||{},fd=t=>new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
   document.getElementById('meta').textContent=(mt.lastImport?`Última importação: fatura ${lab(mt.lastImport.fatura)} em ${fd(mt.lastImport.at)}`:'Nenhuma importação ainda')+(mt.updatedAt?` · Atualizado em ${fd(mt.updatedAt)}${mt.updatedBy?` por ${mt.updatedBy}`:''}`:'');
-  document.querySelector('[data-tab=imp]').textContent='Importar / Revisar'+(nr?` (${nr})`:'');
+  document.querySelector('[data-tab=imp]').textContent='📥 Importar / Revisar'+(nr?` (${nr})`:'');
   updateMobBar();
   const bodyHtml={metas:rMetas,projetos:rProjetos,planos:rPlanos,cen:rCen,fluxo:rFluxo,geral:rGeral,mes:rMes,cartao:rCartao,lanc:rLanc,fora:rFora,irpf:rIrpf,prem:rPrem,imp:rImp,hist:rHist}[tab]();
   m.innerHTML=(tab==='geral'?welcomeBanner():'')+tabHint(tab)+bodyHtml;
@@ -3170,11 +3170,27 @@ function drawHist(){
     options:{scales:{x:{stacked:true},y:{stacked:true}},plugins:{tooltip:{callbacks:{label:c=>c.dataset.label+': '+brl(c.parsed.y)}}}}}));
 }
 
+function setDrawer(open){
+  const t=document.getElementById('tabs'),bd=document.getElementById('nav-backdrop'),mb=document.getElementById('menu-btn');
+  if(!t)return;
+  t.classList.toggle('open',!!open);
+  if(bd)bd.hidden=!open;
+  if(mb)mb.setAttribute('aria-expanded',open?'true':'false');
+}
+if(localStorage.getItem('pf-nav-collapsed')==='1'&&document.body)document.body.classList.add('nav-collapsed');
+document.getElementById('menu-btn')?.addEventListener('click',()=>{
+  if(window.innerWidth<1024){setDrawer(!document.getElementById('tabs')?.classList.contains('open'));return}
+  const c=document.body.classList.toggle('nav-collapsed');
+  localStorage.setItem('pf-nav-collapsed',c?'1':'0');
+});
+document.getElementById('mob-menu-btn')?.addEventListener('click',()=>setDrawer(true));
+document.getElementById('nav-close')?.addEventListener('click',()=>setDrawer(false));
+document.getElementById('nav-backdrop')?.addEventListener('click',()=>setDrawer(false));
 document.getElementById('view').addEventListener('change',e=>{view=e.target.value;render()});
-document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b){tab=b.dataset.tab;SEL.clear();render()}});
-document.getElementById('mob-nav')?.addEventListener('click',e=>{const b=e.target.closest('[data-mtab]');if(b){tab=b.dataset.mtab;SEL.clear();render()}});
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b){tab=b.dataset.tab;SEL.clear();setDrawer(false);render()}});
+document.getElementById('mob-nav')?.addEventListener('click',e=>{const b=e.target.closest('[data-mtab]');if(b){tab=b.dataset.mtab;SEL.clear();setDrawer(false);render()}});
 document.getElementById('help-btn')?.addEventListener('click',()=>openGuideModal());
-document.getElementById('mob-help-btn')?.addEventListener('click',()=>openGuideModal());
+document.getElementById('drawer-guide-btn')?.addEventListener('click',()=>{setDrawer(false);openGuideModal()});
 document.getElementById('theme-btn')?.addEventListener('click',()=>{
   applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
   render();
@@ -3185,6 +3201,7 @@ window.addEventListener('keydown',e=>{
   else if(e.key==='Escape'){
     const qm=document.getElementById('qmodal');
     if(qm&&!qm.hidden){qm.hidden=true}
+    else if(document.getElementById('tabs')?.classList.contains('open')){setDrawer(false)}
     else if(SEL.size){SEL.clear();render()}
   }
 });
@@ -3272,7 +3289,10 @@ document.getElementById('fab-add')?.addEventListener('click',()=>openQuickAdd(ta
 // ---- Sincronização (Supabase) ----
 const CFG=window.CONFIG||{},sb=CFG.SUPABASE_URL&&window.supabase?supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY):null;
 let timer=null,lastRemote=null;
-const setSync=t=>{document.getElementById('sync').textContent=t};
+const setSync=t=>{
+  const el=document.getElementById('sync');if(el)el.textContent=t;
+  const ds=document.getElementById('drawer-sync');if(ds)ds.textContent=t;
+};
 function push(){
   if(!sb)return;clearTimeout(timer);setSync('salvando…');
   timer=setTimeout(async()=>{
@@ -3320,9 +3340,16 @@ async function start(){
   const em=data.session.user?.email||'';
   currentUser=/pedro/i.test(em)?'Pedro':/cristian/i.test(em)?'Cristian':(em.split('@')[0]||'Usuário');
   if(!document.getElementById('usr-exit')){
-    const u=document.createElement('span');u.className='tag '+(currentUser==='Pedro'?'t-Pedro':'t-Cristian');u.textContent=`👤 ${currentUser}`;
-    const b=document.createElement('button');b.id='usr-exit';b.textContent='Sair';b.className='b g';b.onclick=async()=>{await sb.auth.signOut();location.reload()};
+    const clsTag='tag '+(currentUser==='Pedro'?'t-Pedro':'t-Cristian');
+    const u=document.createElement('span');u.className=clsTag;u.textContent=`👤 ${currentUser}`;
+    const b=document.createElement('button');b.id='usr-exit';b.textContent='Sair';b.className='b g';b.style.cssText='padding:4px 9px;font-size:12px';b.onclick=async()=>{await sb.auth.signOut();location.reload()};
     document.getElementById('sync').after(u,b);
+    const du=document.getElementById('drawer-user');
+    if(du){
+      du.hidden=false;
+      du.innerHTML=`<span class="${clsTag}">👤 ${esc(currentUser)}</span><span id="drawer-sync" class="note" style="margin:0;flex:1">${esc(document.getElementById('sync')?.textContent||'')}</span><button type="button" id="drawer-exit" class="b g" style="padding:3px 9px;font-size:11.5px">Sair</button>`;
+      du.querySelector('#drawer-exit').onclick=b.onclick;
+    }
   }
   await pull(true);render();
   setInterval(()=>pull(false),15000);

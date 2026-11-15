@@ -27,9 +27,11 @@ O portal funciona como aplicativo (**PWA**), ocupando a tela inteira e carregand
   1. Abra o link no **Google Chrome**.
   2. Toque no menu **`⋮`** (canto superior direito) → **Instalar aplicativo** (ou **Adicionar à tela inicial**).
 
-### Usando no Celular no Dia a Dia
-- Logo abaixo do cabeçalho existe uma **barra de resumo rápido** com *Mês base*, *Fatura atual*, *Sobra do mês* e *Parte Pedro* (tocando em **Parte Pedro ▸**, você vai direto para o acerto do mês).
-- Na **parte inferior da tela**, uma barra fixa dá acesso em 1 toque às telas mais usadas: **📊 Geral**, **💸 Mês/Pix**, **🧾 Contas**, **🎯 Projetos** e **❓ Guia**.
+### Usando no Celular e no Computador no Dia a Dia
+- **Sem precisar ficar deslizando abas:** no computador, todas as 14 seções ficam visíveis em uma **barra lateral à esquerda** (você pode recolher/expandir clicando em **`☰`** quando quiser mais espaço para tabelas largas). No celular, o menu fica em uma **gaveta lateral (`☰`)** com todas as opções organizadas sem precisar arrastar abas para os lados.
+- Logo abaixo do cabeçalho fino existe uma **barra de resumo rápido** com *Mês base*, *Fatura atual*, *Sobra do mês* e *Parte Pedro* (tocando em **Parte Pedro ▸**, você vai direto para o acerto do mês).
+- Na **parte inferior da tela**, uma barra fixa dá acesso em 1 toque às telas mais usadas: **📊 Geral**, **💸 Mês/Pix**, **🧾 Contas**, **🎯 Projetos** e **☰ Menu** (que abre todas as 14 abas, usuário logado e Guia).
+- O botão **`❓`** no topo da tela abre o **Guia Rápido** a qualquer momento.
 - O botão azul **`+ Lançamento`** fica sempre acessível no canto inferior direito para registrar um gasto na hora, em segundos.
 - Use o seletor **`Visão`** no topo para alternar entre ver os gastos do **Casal (tudo)**, só a parte do **Pedro (indiv. + 50%)**, só a parte do **Cristian (indiv. + 50%)** ou **Só Conjunto (100%)**.
 
