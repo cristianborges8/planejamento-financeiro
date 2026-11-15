@@ -15,7 +15,7 @@ Central de gestão financeira e planejamento futuro do casal (HTML + CSS + JavaS
 | `lib/` | Chart.js, SheetJS (`xlsx`) e `supabase-js` empacotados localmente (zero dependências CDN em runtime) |
 | `config.js` | URL do Supabase e chave `publishable` / `anon` (pública, protegida por RLS) |
 | `supabase.sql` | Criação da tabela `household` (`id = 1`) e policies de RLS para os dois e-mails |
-| `sw.js`, `manifest.webmanifest`, `icon.svg` | PWA e cache offline (`fin-v12`, estratégia network-first com atualização imediata) |
+| `sw.js`, `manifest.webmanifest`, `icon.svg` | PWA e cache offline (`fin-v13`, estratégia network-first com atualização imediata) |
 | `data.js` | Seed local opcional com dados pessoais. **Está no `.gitignore`; nunca versionar** |
 
 ### Estrutura do Documento em Nuvem (`household.data` JSONB)

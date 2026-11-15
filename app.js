@@ -273,22 +273,22 @@ function updateMobBar(){
   mb.querySelector('[data-jump-mob]')?.addEventListener('click',()=>{tab='mes';render()});
 }
 const TAB_HINTS={
-  geral:'<b>Panorama do Casal:</b> veja a evolução de receitas, despesas e saldo até o fim do horizonte. Clique em qualquer mês para abrir o acerto detalhado.',
-  mes:'<b>Acerto do Mês & Rotina:</b> confira quanto cada um paga no mês, envie o resumo no WhatsApp / Pix Copia e Cola e registre o comprovante para o IRPF.',
-  fluxo:'<b>Fluxo & Patrimônio:</b> acompanhe o caixa mensal acumulado, saldo em conta e evolução do FGTS de Cristian e Pedro.',
-  cartao:'<b>Compromissos do Cartão:</b> parcelas, fixas e assinaturas já programadas, além de estimativas opcionais (ex.: gasolina, mercado) para os próximos meses.',
-  lanc:'<b>Extrato do Cartão:</b> edite, filtre ou altere em lote quem pagou cada compra da fatura (Cristian 100%, Pedro 100% ou Conjunto 50/50).',
-  imp:'<b>Entrada de Dados:</b> importe a fatura do Itaú (.xlsx) ou extrato bancário/Pix (.ofx ou .csv) e revise os lançamentos pendentes antes de somarem nos gráficos.',
-  fora:'<b>Contas da Casa & Rendas:</b> cadastre salários, aluguel, financiamento e boletos. Preencha o dia de vencimento para receber alertas automáticos de 5 dias.',
-  hist:'<b>Memória & Auditoria:</b> compare faturas fechadas 🔒, veja sua inflação pessoal ano a ano e acompanhe quem alterou o quê na auditoria.',
-  metas:'<b>Limites por Categoria:</b> defina tetos mensais (ex.: Mercado, Alimentação) e acompanhe barras de alerta em 80% e 100%.',
-  projetos:'<b>Sonhos do Casal:</b> planeje Imóvel (usando FGTS de Cristian + Pedro), Carro ou Viagens e veja o mês previsto de realização.',
-  planos:'<b>Reserva & Investimentos:</b> configure reserva de emergência, aportes mensais programados, saques do FGTS e compras planejadas.',
-  cen:'<b>Simuladores "E se?":</b> teste aumentos/cortes, simule amortizar financiamento com FGTS ou calcule sua Independência Financeira (FIRE) sem alterar dados reais.',
-  irpf:'<b>Declaração Anual (IRPF):</b> conciliação pronta dos valores recebidos do Pedro (evita malha fina da Decred/e-Financeira), deduções por CPF e saldos em 31/12.',
-  prem:'<b>Configurações & Segurança:</b> ajuste o mês base, crie backups em JSON ou restaure pontos anteriores salvos automaticamente.'
+  geral:['Visão Geral','Evolução de receitas, despesas e saldo projetado. Clique em qualquer mês para abrir o acerto detalhado.'],
+  mes:['Visão Mensal & Acerto','Resumo de quanto cada um paga no mês, envio de WhatsApp/Pix, ritmo diário e fechamento oficial.'],
+  fluxo:['Fluxo de Caixa & FGTS','Caixa mensal acumulado, saldo em conta e evolução do FGTS de Cristian e Pedro.'],
+  cartao:['Cartão de Crédito','Parcelas, fixas e assinaturas programadas + estimativas futuras opcionais.'],
+  lanc:['Lançamentos da Fatura','Filtre, edite ou altere em lote quem pagou cada compra (Cristian 100%, Pedro 100% ou Conjunto 50/50).'],
+  imp:['Importar & Revisar','Envie a fatura Itaú (.xlsx) ou extrato/Pix (.ofx/.csv) e valide itens pendentes antes de somarem.'],
+  fora:['Contas Fora do Cartão','Rendas, aluguel, carro e boletos com alerta de 5 dias antes do vencimento.'],
+  hist:['Histórico & Auditoria','Faturas fechadas 🔒, inflação pessoal ano a ano e trilha de alterações do casal.'],
+  metas:['Metas por Categoria','Limites mensais (cartão + fora do cartão) com alertas em 80% e 100%.'],
+  projetos:['Projetos de Vida','Metas de Imóvel (c/ FGTS conjunto), Carro e Viagens com previsão de conclusão.'],
+  planos:['Planos & Reserva','Reserva de emergência, aportes em investimentos, saques do FGTS e compras planejadas.'],
+  cen:['Simuladores','Teste cenários de fluxo, amortização de dívidas com FGTS e Independência Financeira (FIRE).'],
+  irpf:['Dossiê IRPF & Conciliação Fiscal','Comprovação anual das transferências (Decred / e-Financeira), deduções por CPF e saldos em 31/12.'],
+  prem:['Premissas & Backups','Mês base, guia de uso, exportação JSON e pontos de restauração automáticos.']
 };
-const tabHint=t=>TAB_HINTS[t]?`<div class="tab-hint no-print"><span>💡 ${TAB_HINTS[t]}</span><button class="b g" type="button" data-act="open-guide" style="padding:3px 9px;font-size:11.5px;white-space:nowrap">❓ Como usar</button></div>`:'';
+const tabHint=t=>TAB_HINTS[t]?`<div class="tab-hint no-print"><div><span class="tab-title">${TAB_HINTS[t][0]}</span><span>${TAB_HINTS[t][1]}</span></div><button class="b g" type="button" data-act="open-guide" style="padding:4px 10px;font-size:12px;white-space:nowrap">❓ Como usar</button></div>`:'';
 function welcomeBanner(){
   if(localStorage.getItem('pf-onboard-seen')==='1')return '';
   return `<div class="welcome-banner no-print" id="welcome-banner">
@@ -907,23 +907,22 @@ function rGeral(){
     </table></div>`;
   }
 
-  return `${nrev?`<div class="warn">${nrev} lançamentos aguardando validação: ficam fora dos cálculos até você confirmar (aba Importar / Revisar).</div>`:''}
+  return `${nrev?`<div class="warn">${nrev} lançamentos aguardando validação (aba <b>Importar / Revisar</b>).</div>`:''}
   ${dueAlertsPanel(todayYM(),false)}
   <div class="bar" style="justify-content:space-between;margin-bottom:10px">
     ${horizonCtrl()}
-    <span class="note">Projeção: <b>apenas fixas, parcelas e assinaturas programadas</b>${optAtivas?` + <b>${optAtivas} estimativa(s) manual(is)</b>`:' (sem simulação automática de variáveis)'}${S.settings.includePlans?' · 📋 com Planos':''}</span>
+    <span class="note">${optAtivas?`📌 <b>${optAtivas} estimativa(s)</b> ativa(s)`:'Projeção apenas de parcelas e contas programadas'}${S.settings.includePlans?' · 📋 com Planos':''}</span>
   </div>
   <div class="cards">
-    <div class="card"><small>Fatura atual (${lab(k0.ym)})</small><b>${brl(k0.cartao)}</b><small class="sub">${pctRenda}% da renda · fixas/parc. ${brl(k0.comprometido)}</small></div>
-    <div class="card"><small>Próxima fatura (${lab(k1.ym)})</small><b>${brl(k1.cartao)}</b><small class="sub">programado: ${brl(k1.comprometido)}${k1.g.variaveis?` + estimativas ${brl(k1.g.variaveis)}`:''}</small></div>
-    <div class="card c-warn"><small>Parcelas futuras (${C.length-1} meses)</small><b>${brl(parcRest)}</b><small class="sub">até ${lab(fim.ym)}</small></div>
-    <div class="card ${avg>=0?'c-pos':'c-neg'}"><small>Sobra média mensal</small><b class="${cls(avg)}">${brl(avg)}</b><small class="sub">${k0.renda?Math.round(avg/k0.renda*100):0}% da renda poupada/mês</small></div>
-    <div class="card ${fim.saldo>=0?'c-pos':'c-neg'}"><small>Saldo projetado em ${lab(fim.ym)}</small><b class="${cls(fim.saldo)}">${brl(fim.saldo)}</b><small class="sub">acumulado em conta</small></div>
-    <div class="card"><small>Fatura ${lab(base)}: Individual vs Conjunto</small><b style="font-size:15px">Cristian: ${brl(sp.payC)} · Pedro: ${brl(sp.payP)}</b><small class="sub">Indiv. C: ${brl(sp.Cristian)} · Indiv. P: ${brl(sp.Pedro)} · Conj. (50/50): ${brl(sp.Conjunto)}</small></div>
+    <div class="card"><small>Fatura atual (${lab(k0.ym)})</small><b>${brl(k0.cartao)}</b><small class="sub">${pctRenda}% da renda · Próx. (${lab(k1.ym)}): <b>${brl(k1.cartao)}</b></small></div>
+    <div class="card c-warn"><small>Parcelas futuras (${C.length-1} meses)</small><b>${brl(parcRest)}</b><small class="sub">comprometido até ${lab(fim.ym)}</small></div>
+    <div class="card ${avg>=0?'c-pos':'c-neg'}"><small>Sobra média & Saldo final</small><b class="${cls(avg)}">${brl(avg)}/mês</b><small class="sub">Saldo em ${lab(fim.ym)}: <b class="${cls(fim.saldo)}">${brl(fim.saldo)}</b></small></div>
+    <div class="card"><small>Divisão em ${lab(base)} (Indiv. + 50%)</small><b style="font-size:16px">C: ${brl(sp.payC)} · P: ${brl(sp.payP)}</b><small class="sub">Indiv. C ${brl(sp.Cristian)} · P ${brl(sp.Pedro)} · Conj. ${brl(sp.Conjunto)}</small></div>
   </div>
-  <div class="panel"><h2>Série temporal completa (${lab(R[0].ym)} a ${lab(R[R.length-1].ym)})</h2>
-  <div class="note">Meses até ${lab(addM(base,-1))}: faturas reais fechadas. Em ${lab(base)}: fatura atual lançada. A partir de ${lab(addM(base,1))}: apenas despesas já programadas (parcelas, fixas e assinaturas) + estimativas que você lançar. Clique em uma barra para abrir o mês.</div>
-  <canvas id="cg" height="110"></canvas></div>
+  <div class="sec-lbl">Evolução &amp; Resumo Anual</div>
+  <div class="panel"><h2>Série temporal (${lab(R[0].ym)} a ${lab(R[R.length-1].ym)})</h2>
+  <div class="note">Passado = real · Atual = lançada · Futuro = programado${optAtivas?' + estimativas':''}. Clique em uma barra para abrir o mês.</div>
+  <canvas id="cg" height="105"></canvas></div>
   <div class="panel"><h2>Resumo por ano</h2><div class="tw"><table>
     <thead>
       <tr>
@@ -942,20 +941,21 @@ function rGeral(){
     <tbody>
     ${yrs.map(y=>{const rs=R.filter(r=>r.ym.startsWith(y)),iC=rs.reduce((a,r)=>a+r.byQ.Cristian,0),iP=rs.reduce((a,r)=>a+r.byQ.Pedro,0),cj=rs.reduce((a,r)=>a+r.byQ.Conjunto,0),mCj=cj*0.5;return `<tr><td class="l"><b>${y}</b></td><td>${num(sum(rs,'renda'))}</td><td class="bl col-c">${num(iC)}</td><td class="col-p">${num(iP)}</td><td class="col-j">${num(cj)}</td><td class="col-j">${num(mCj)}</td><td class="bl col-c">${num(iC+mCj)}</td><td class="col-p">${num(iP+mCj)}</td><td class="bl">${num(sum(rs,'cartao'))}</td><td>${num(sum(rs,'fora'))}</td><td class="col-sum">${num(sum(rs,'total'))}</td><td class="${cls(sum(rs,'sobra'))}"><b>${num(sum(rs,'sobra'))}</b></td></tr>`}).join('')}
     </tbody></table></div></div>
+  <div class="sec-lbl">Detalhamento Mês a Mês</div>
   <div class="panel">
     <div class="bar" style="justify-content:space-between;margin-bottom:10px">
-      <h2 style="margin:0">Todos os meses (Separado: Individuais vs Conjuntas 50/50)</h2>
+      <h2 style="margin:0">Todos os meses (Individuais × Conjuntas 50/50)</h2>
       <div class="bar" style="margin:0">
         <div class="seg-bar">
-          <button data-act="gmode" data-mode="linhas" class="${geralMode==='linhas'?'on':''}">📑 Linhas que se somam (Itens × Meses)</button>
-          <button data-act="gmode" data-mode="meses" class="${geralMode==='meses'?'on':''}">📅 Resumo por Mês (Agrupado)</button>
-          <button data-act="gmode" data-mode="tipos" class="${geralMode==='tipos'?'on':''}">💳 Por Tipo (Parcelas/Fixas)</button>
+          <button data-act="gmode" data-mode="linhas" class="${geralMode==='linhas'?'on':''}">📑 Itens × Meses</button>
+          <button data-act="gmode" data-mode="meses" class="${geralMode==='meses'?'on':''}">📅 Resumo Agrupado</button>
+          <button data-act="gmode" data-mode="tipos" class="${geralMode==='tipos'?'on':''}">💳 Por Tipo</button>
         </div>
-        ${geralMode==='linhas'?`<label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="chk-past-m" ${showPastMatrix?'checked':''}> Incluir faturas passadas</label>`:''}
+        ${geralMode==='linhas'?`<label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="chk-past-m" ${showPastMatrix?'checked':''}> Incluir passadas</label>`:''}
       </div>
     </div>
     ${mainTable}
-    <div class="bar" style="margin-top:12px"><button class="b g" data-act="export-xlsx">Exportar planilha completa (xlsx)</button></div>
+    <div class="bar" style="margin-top:12px"><button class="b g" data-act="export-xlsx">📊 Exportar planilha completa (.xlsx)</button></div>
   </div>`;
 }
 function drawGeral(){
@@ -1072,7 +1072,7 @@ function rMes(){
   const renda=off.filter(o=>o.kind==='receita').reduce((a,o)=>a+offAmt(o)*weight(o.quem),0);
   const cat={};items.forEach(i=>cat[i.cat]=(cat[i.cat]||0)+i.valor);
   const pend=S.tx.filter(x=>x.rev&&x.fatura===ym).length,i=Ms.indexOf(ym);
-  const status=frozen?'fechamento oficial congelado 🔒':ym<base?'fatura real':ym===base?'fatura atual (lançada)':'projeção programada';
+  const status=frozen?'fechamento congelado 🔒':ym<base?'fatura real':ym===base?'fatura atual':'projeção';
   const vLab={casal:'casal',cristian:'Cristian',pedro:'Pedro',conjunto:'Conjunto'}[view];
   const fatOk=isPaid(ym,'fatura'),acOk=isPaid(ym,'acerto'),pix=S.extras.acertoPix?.[ym]||frozen?.pix||null;
   const pixCfg=S.extras.pixConfig||{chave:'',titular:'Cristian',cidade:'SAO PAULO'};
@@ -1083,15 +1083,14 @@ function rMes(){
     const cList=rawItems.filter(x=>x.quem===q).sort((a,b)=>b.valor-a.valor);
     const oList=offDespAll.filter(o=>o.quem===q).sort((a,b)=>(a.venc||99)-(b.venc||99));
     const sumC=cList.reduce((a,x)=>a+x.valor,0),sumO=oList.reduce((a,o)=>a+offAmt(o),0),totG=sumC+sumO;
-    return `<div class="panel" style="flex:1;min-width:340px">
+    return `<div class="panel" style="flex:1;min-width:300px;margin-bottom:0">
       <h2>${title}</h2>
       <div class="tw"><table>
-        <thead><tr><th class="l">Item que entra na soma</th><th class="l">Origem</th><th>Parcela</th><th>Valor (100%)</th>${isConj?'<th>50% (cada)</th>':''}</tr></thead>
+        <thead><tr><th class="l">Item</th><th class="l">Origem</th><th>Parc.</th><th>Valor (100%)</th>${isConj?'<th>50% (cada)</th>':''}</tr></thead>
         <tbody>
-          ${oList.map(o=>`<tr><td class="l"><b>${esc(o.nome)}</b></td><td class="l"><span class="pill-orig">Fora do cartão${o.venc?` · dia ${o.venc}`:''}</span></td><td>–</td><td>${num(offAmt(o))}</td>${isConj?`<td class="col-j">${num(offAmt(o)*0.5)}</td>`:''}</tr>`).join('')}
+          ${oList.map(o=>`<tr><td class="l"><b>${esc(o.nome)}</b></td><td class="l"><span class="pill-orig">Fora${o.venc?` · dia ${o.venc}`:''}</span></td><td>–</td><td>${num(offAmt(o))}</td>${isConj?`<td class="col-j">${num(offAmt(o)*0.5)}</td>`:''}</tr>`).join('')}
           ${cList.map(x=>`<tr><td class="l">${esc(x.desc.slice(0,40))}</td><td class="l"><span class="pill-orig">Cartão · ${TIPOS[x.tipo]}</span></td><td>${x.sub||'–'}</td><td>${num(x.valor)}</td>${isConj?`<td class="col-j">${num(x.valor*0.5)}</td>`:''}</tr>`).join('')}
           ${!oList.length&&!cList.length?`<tr><td class="l note" colspan="${isConj?5:4}">Nenhum item neste mês.</td></tr>`:''}
-          ${sumO&&sumC?`<tr class="sub-row"><td class="l" colspan="3"><small>Subtotais: Cartão ${brl(sumC)} + Fora do cartão ${brl(sumO)}</small></td><td>${num(totG)}</td>${isConj?`<td>${num(totG*0.5)}</td>`:''}</tr>`:''}
           <tr class="sub-row ${subCls}"><td class="l">= SOMA ${isConj?'CONJUNTAS':'INDIVIDUAL '+q.toUpperCase()}</td><td></td><td></td><td>${num(totG)}</td>${isConj?`<td>${num(totG*0.5)}</td>`:''}</tr>
         </tbody>
       </table></div>
@@ -1099,25 +1098,22 @@ function rMes(){
   };
 
   return `<div class="panel">
-    <div class="bar" style="justify-content:space-between">
+    <div class="bar" style="justify-content:space-between;margin-bottom:${frozen||pend?10:12}px">
       <div class="bar" style="margin:0"><button class="b g" data-mes="${Ms[Math.max(0,i-1)]}">◀</button>
       <select id="msel">${Ms.map(m=>`<option value="${m}" ${m===ym?'selected':''}>${lab(m)}${S.extras.closedMonths?.[m]?' 🔒':''}</option>`).join('')}</select>
-      <button class="b g" data-mes="${Ms[Math.min(Ms.length-1,i+1)]}">▶</button><b style="margin-left:10px">${lab(ym)} – ${status}</b></div>
+      <button class="b g" data-mes="${Ms[Math.min(Ms.length-1,i+1)]}">▶</button><span class="pill-orig" style="margin-left:6px">${lab(ym)} · ${status}</span></div>
       <div class="bar" style="margin:0">
         ${frozen?`<button class="b g" data-act="unfreeze-month" data-ym="${ym}">🔓 Reabrir Mês</button>`:`<button class="b" data-act="freeze-month" data-ym="${ym}" title="Congelar cópia definitiva da DRE deste mês">🔒 Encerrar Mês (Congelar DRE)</button>`}
       </div>
     </div>
     ${frozen?`<div class="frozen-banner"><div><b>🔒 Mês Oficialmente Encerrado (DRE Congelada)</b><br><small>Arquivado em ${fdFull(frozen.closedAt)} por <b>${esc(frozen.closedBy||'Local')}</b>. Regras futuras ou alterações nas faturas não alteram estes números.</small></div><span class="pill-orig">Registro definitivo</span></div>`:''}
-    <div class="bar">${pctBox()}</div>
     ${pend&&!frozen?`<div class="warn">${pend} lançamentos desta fatura ainda não validados e fora dos números abaixo.</div>`:''}
-    <div class="cards">
+    <div class="cards" style="margin-bottom:0">
       <div class="card"><small>Renda (${vLab})</small><b>${brl(renda)}</b><small class="sub">Cristian: ${brl(recC)} · Pedro: ${brl(recP)}</small></div>
-      <div class="card"><small>🔵 Individuais Cristian (100%)</small><b>${brl(totIndC)}</b><small class="sub">Cartão: ${brl(sp.Cristian)}${offIndC?` + Fora: ${brl(offIndC)}`:''}</small></div>
-      <div class="card"><small>🟠 Individuais Pedro (100%)</small><b>${brl(totIndP)}</b><small class="sub">Cartão (c/ QuintoAndar): ${brl(sp.Pedro)}${offIndP?` + Fora: ${brl(offIndP)}`:''}</small></div>
-      <div class="card c-warn"><small>🟢 Conjuntas (Total 100%)</small><b>${brl(totConj)}</b><small class="sub">Cartão: ${brl(sp.Conjunto)} + Aluguel/Carro: ${brl(offConj)} → <b>${brl(meioConj)} p/ cada (50/50)</b></small></div>
-      <div class="card"><small>📌 Total Cristian (Indiv. + 50% Conj.)</small><b>${brl(totC)}</b><small class="sub">Indiv. ${brl(totIndC)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recC-totC)}">${brl(recC-totC)}</b></small></div>
-      <div class="card" style="border-top:3px solid #d9480f"><small>📌 Total Pedro (Indiv. + 50% Conj.)</small><b>${brl(totP)}</b><small class="sub">Indiv. ${brl(totIndP)} + 50% Conj. ${brl(meioConj)} · Sobra: <b class="${cls(recP-totP)}">${brl(recP-totP)}</b></small>
-        <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
+      <div class="card"><small>Gastos Individuais (100%)</small><b style="font-size:17px">${brl(totIndC+totIndP)}</b><small class="sub">🔵 Cristian: ${brl(totIndC)} · 🟠 Pedro: ${brl(totIndP)}</small></div>
+      <div class="card c-warn"><small>Conjuntas (Total 100% → 50/50)</small><b>${brl(totConj)}</b><small class="sub">${brl(meioConj)} p/ cada (Cartão ${brl(sp.Conjunto)} + Fora ${brl(offConj)})</small></div>
+      <div class="card" style="border-top:3px solid #d9480f"><small>📌 Total Pedro (Acerto) &amp; Status</small><b>${brl(totP)}</b><small class="sub">Cristian: ${brl(totC)} · Sobra P: <b class="${cls(recP-totP)}">${brl(recP-totP)}</b></small>
+        <div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">
           <label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="fatura" data-ym="${ym}" ${fatOk?'checked':''}><span class="${fatOk?'pos':''}">${fatOk?'Fatura paga ✓':'Fatura aberta'}</span></label>
           <label class="note" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-paid="acerto" data-ym="${ym}" data-calc="${totP.toFixed(2)}" data-card="${payP.toFixed(2)}" data-off="${offsP.toFixed(2)}" ${acOk?'checked':''}><span class="${acOk?'pos':''}">${acOk?'Acerto ok ✓':'Acerto pend.'}</span></label>
         </div>
@@ -1127,10 +1123,11 @@ function rMes(){
   </div>
   ${dueAlertsPanel(ym,false)}
 
+  <div class="sec-lbl">Acerto &amp; Ritmo do Mês</div>
   <div class="panel acerto-card">
     <div class="acerto-grid">
       <div>
-        <h2 style="margin-bottom:4px">💬 Card de Acerto Mensal — WhatsApp & Pix (${lab(ym)})</h2>
+        <h2 style="margin-bottom:4px">💬 Card de Acerto Mensal — WhatsApp &amp; Pix (${lab(ym)})</h2>
         <div class="note">Pedro transfere para <b>${esc(pixCfg.titular||'Cristian')}</b>: <b style="font-size:15px;color:var(--text)">${brl(totP)}</b> (Cartão: ${brl(payP)} + Fora: ${brl(offsP)}) ${acOk?'<span class="due-badge due-ok">Acerto liquidado ✓</span>':'<span class="due-badge due-soon">Aguardando Pix</span>'}</div>
         <div class="acerto-actions">
           <button class="b wa" id="btn-copy-wa" data-act="copy-wa">📲 Copiar mensagem WhatsApp</button>
@@ -1163,15 +1160,16 @@ function rMes(){
   </div>
   ${burnRatePanel(ym,rawItems,offDespAll,recC,recP,totC,totP,frozen)}
 
+  <div class="sec-lbl">Fechamento &amp; Checklist de Contas</div>
   <div class="panel">
-    <h2>Quadro Resumo de Fechamento em ${lab(ym)} (Como as linhas se somam)</h2>
+    <h2>Quadro Resumo de Fechamento em ${lab(ym)}</h2>
     <div class="tw"><table>
       <thead>
         <tr>
           <th class="l">Pessoa</th>
-          <th class="bl">1. Cartão Individual (100%)</th><th>+ 50% Cartão Conjunto</th><th class="col-sum">= Paga na Fatura</th>
-          <th class="bl">2. Fora Indiv. (100%)</th><th>+ 50% Fora Conj. (Aluguel/Carro)</th><th class="col-sum">= Paga Fora do Cartão</th>
-          <th class="bl col-sum">TOTAL DESPESAS (1 + 2)</th><th>Renda no Mês</th><th>Sobra / Falta</th>
+          <th class="bl">1. Cartão Indiv. (100%)</th><th>+ 50% Cartão Conj.</th><th class="col-sum">= Paga Fatura</th>
+          <th class="bl">2. Fora Indiv. (100%)</th><th>+ 50% Fora Conj.</th><th class="col-sum">= Paga Fora</th>
+          <th class="bl col-sum">TOTAL DESPESAS</th><th>Renda no Mês</th><th>Sobra / Falta</th>
         </tr>
       </thead>
       <tbody>
@@ -1197,16 +1195,28 @@ function rMes(){
     </table></div>
   </div>
 
-  <div class="row">
-    ${buildPersonPanel('Cristian','🔵 1. Itens Individuais — Cristian (100%)','sub-c',false)}
-    ${buildPersonPanel('Pedro','🟠 2. Itens Individuais — Pedro (100% · c/ QuintoAndar)','sub-p',false)}
-    ${buildPersonPanel('Conjunto','🟢 3. Itens Conjuntos — Divididos 50/50 (Aluguel, Carro, etc.)','sub-j',true)}
+  <div class="panel">
+    <h2>Checklist de pagamentos Fora do Cartão (${lab(ym)}) <span class="note">· ${nPaid}/${offDesp.length} pagas</span></h2>
+    <div class="tw"><table><tr><th class="l">Pago</th><th class="l">Item</th><th>Venc.</th><th>Valor</th></tr>${off.map(o=>{const ok=isPaid(ym,o.id),ds=dueStatus(o,ym);return `<tr style="${ok?'opacity:.65':''}"><td class="l">${o.kind==='receita'?'<span class="pos">✓</span>':`<input type="checkbox" data-paid="${o.id}" data-ym="${ym}" ${ok?'checked':''}>`}</td><td class="l">${esc(o.nome)} <small>(${o.quem}${o.quem==='Conjunto'?' · 50/50':''})</small></td><td>${o.venc?(ds&&!ok&&ds.urgent?`<span class="due-badge ${ds.cls}">${ds.label}</span>`:'dia '+o.venc):'–'}</td><td class="${o.kind==='receita'?'pos':'neg'}">${o.kind==='receita'?'+':'-'}${num(offAmt(o)*weight(o.quem))}</td></tr>`}).join('')}</table></div>
   </div>
 
-  <div class="row">
-    <div class="panel" style="flex:1;min-width:320px"><h2>Gastos do cartão por categoria (${vLab})</h2><div class="tw"><table>${Object.entries(cat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${num(v)}</td></tr>`).join('')}</table></div></div>
-    <div class="panel" style="flex:1;min-width:320px"><h2>Checklist de pagamentos Fora do Cartão (${lab(ym)}) <span class="note">· ${nPaid}/${offDesp.length} pagas</span></h2><div class="tw"><table><tr><th class="l">Pago</th><th class="l">Item</th><th>Venc.</th><th>Valor</th></tr>${off.map(o=>{const ok=isPaid(ym,o.id),ds=dueStatus(o,ym);return `<tr style="${ok?'opacity:.65':''}"><td class="l">${o.kind==='receita'?'<span class="pos">✓</span>':`<input type="checkbox" data-paid="${o.id}" data-ym="${ym}" ${ok?'checked':''}>`}</td><td class="l">${esc(o.nome)} <small>(${o.quem}${o.quem==='Conjunto'?' · 50/50':''})</small></td><td>${o.venc?(ds&&!ok&&ds.urgent?`<span class="due-badge ${ds.cls}">${ds.label}</span>`:'dia '+o.venc):'–'}</td><td class="${o.kind==='receita'?'pos':'neg'}">${o.kind==='receita'?'+':'-'}${num(offAmt(o)*weight(o.quem))}</td></tr>`}).join('')}</table></div></div>
-  </div>`;
+  <div class="sec-lbl">Detalhamento Opcional (por Pessoa &amp; Categoria)</div>
+  <details class="acc">
+    <summary><span>🔍 Itens que compõem o mês por Pessoa (Cristian, Pedro &amp; Conjunto 50/50)</span></summary>
+    <div class="acc-body">
+      <div class="row">
+        ${buildPersonPanel('Cristian','🔵 1. Individuais — Cristian (100%)','sub-c',false)}
+        ${buildPersonPanel('Pedro','🟠 2. Individuais — Pedro (100%)','sub-p',false)}
+        ${buildPersonPanel('Conjunto','🟢 3. Conjuntos — Divididos 50/50','sub-j',true)}
+      </div>
+    </div>
+  </details>
+  <details class="acc">
+    <summary><span>🏷️ Gastos do cartão por categoria (${vLab} · ${Object.keys(cat).length} categorias)</span></summary>
+    <div class="acc-body">
+      <div class="tw"><table>${Object.entries(cat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td class="l">${esc(c)}</td><td>${num(v)}</td></tr>`).join('')}</table></div>
+    </div>
+  </details>`;
 }
 
 function flow(withPlans=S.settings.includePlans){
@@ -1256,27 +1266,30 @@ function rFluxo(){
     ${S.settings.includePlans?`<span class="note" style="color:var(--accent);font-weight:600">📋 Refletindo itens da aba Planos</span>`:''}
   </div>
   <div class="cards">
-    <div class="card"><small>Cristian em ${lab(f0.ym)}</small><b>Renda ${brl(f0.inc.Cristian)}</b><small class="sub">Indiv. ${brl(f0.ind.Cristian)} + 50% Conj. ${brl(f0.conjMeio)} · Sobra: <b class="${cls(f0.sobraC)}">${brl(f0.sobraC)}</b></small></div>
-    <div class="card"><small>Pedro em ${lab(f0.ym)}</small><b>Renda ${brl(f0.inc.Pedro)}</b><small class="sub">Indiv. ${brl(f0.ind.Pedro)} + 50% Conj. ${brl(f0.conjMeio)} · Sobra: <b class="${cls(f0.sobraP)}">${brl(f0.sobraP)}</b></small></div>
-    <div class="card c-warn"><small>Desp. Conjuntas (${lab(f0.ym)})</small><b>${brl(f0.conj)}</b><small class="sub">50% para cada: <b>${brl(f0.conjMeio)}</b></small></div>
+    <div class="card"><small>Cristian em ${lab(f0.ym)}</small><b class="${cls(f0.sobraC)}">Sobra ${brl(f0.sobraC)}</b><small class="sub">Renda ${brl(f0.inc.Cristian)} · Gasto ${brl(f0.totC)} (50% Conj. ${brl(f0.conjMeio)})</small></div>
+    <div class="card"><small>Pedro em ${lab(f0.ym)}</small><b class="${cls(f0.sobraP)}">Sobra ${brl(f0.sobraP)}</b><small class="sub">Renda ${brl(f0.inc.Pedro)} · Gasto ${brl(f0.totP)} (Conj. 100%: ${brl(f0.conj)})</small></div>
     <div class="card ${fl.saldo>=0?'c-pos':'c-neg'}"><small>Saldo em conta (${lab(fl.ym)})</small><b class="${cls(fl.saldo)}">${brl(fl.saldo)}</b><small class="sub">${dSaldo>=0?'+':''}${brl(dSaldo)} no período</small></div>
-    <div class="card"><small>FGTS (${lab(fl.ym)})</small><b>${brl(fl.fgT)}</b><small class="sub">Cristian: ${brl(fl.fg.Cristian)} · Pedro: ${brl(fl.fg.Pedro)}</small></div>
-    <div class="card c-pos"><small>Patrimônio líquido (${lab(fl.ym)})</small><b>${brl(fl.patr)}</b><small class="sub">Conta + FGTS (${dFg>=0?'+':''}${brl(dFg)})</small></div>
+    <div class="card c-pos"><small>Patrimônio líquido (${lab(fl.ym)})</small><b>${brl(fl.patr)}</b><small class="sub">FGTS: ${brl(fl.fgT)} (${dFg>=0?'+':''}${brl(dFg)}) · C ${brl(fl.fg.Cristian)} / P ${brl(fl.fg.Pedro)}</small></div>
   </div>
-  <div class="panel"><h2>Saldo e FGTS</h2><div class="bar">
-   ${['Cristian','Pedro'].map(q=>`<label class="note">Saldo inicial ${q} <input type="number" step="0.01" data-si="${q}" value="${S.settings.saldoIni[q]||0}"></label>`).join('')}</div>
-  <div class="bar">${['Cristian','Pedro'].map(q=>`<label class="note">FGTS ${q}: saldo <input type="number" step="0.01" data-fg="${q}.ini" value="${S.settings.fgts[q].ini}"></label><label class="note">depósito/mês <input type="number" step="0.01" data-fg="${q}.dep" value="${S.settings.fgts[q].dep}"></label>`).join('')}
-   <label class="note">rendimento <input type="number" step="0.01" data-s="fgtsRate" value="${S.settings.fgtsRate}" style="width:70px">% a.m.</label></div>
-  <div class="note">Valem para todos os meses. FGTS = saldo atual + depósito mensal, com rendimento mensal.</div></div>
+  <details class="acc">
+    <summary><span>⚙️ Configurar Saldos Iniciais e FGTS</span><span class="note">Conta inicial: ${brl(saldoIni)} · FGTS inicial: ${brl(fgIni)} (${S.settings.fgtsRate}% a.m.)</span></summary>
+    <div class="acc-body">
+      <div class="bar">${['Cristian','Pedro'].map(q=>`<label class="note">Saldo inicial ${q} <input type="number" step="0.01" data-si="${q}" value="${S.settings.saldoIni[q]||0}"></label>`).join('')}</div>
+      <div class="bar">${['Cristian','Pedro'].map(q=>`<label class="note">FGTS ${q}: saldo <input type="number" step="0.01" data-fg="${q}.ini" value="${S.settings.fgts[q].ini}"></label><label class="note">depósito/mês <input type="number" step="0.01" data-fg="${q}.dep" value="${S.settings.fgts[q].dep}"></label>`).join('')}
+        <label class="note">rendimento <input type="number" step="0.01" data-s="fgtsRate" value="${S.settings.fgtsRate}" style="width:70px">% a.m.</label></div>
+      <div class="note">FGTS = saldo atual + depósito mensal, com rendimento composto mensal.</div>
+    </div>
+  </details>
+  <div class="sec-lbl">Gráficos &amp; Projeção Mensal</div>
   <div class="row"><div class="panel"><h2>Entradas por pessoa x saídas</h2><canvas id="cf1"></canvas></div>
   <div class="panel"><h2>Saldo em conta e FGTS acumulado</h2><canvas id="cf2"></canvas></div></div>
-  <div class="panel"><h2>Fluxo mensal da família (${lab(f0.ym)} a ${lab(fl.ym)}) — Individuais vs Conjuntas (50/50)</h2>
+  <div class="panel"><h2>Fluxo mensal da família (${lab(f0.ym)} a ${lab(fl.ym)})</h2>
   <div class="tw"><table>
     <thead>
       <tr>
         <th class="grp-hdr">Mês</th>
         <th colspan="3" class="grp-hdr bl">💰 Receitas (Entradas)</th>
-        <th colspan="4" class="grp-hdr grp-j bl">Separação de Despesas (Individuais 100% vs Conjuntas 50/50)</th>
+        <th colspan="4" class="grp-hdr grp-j bl">Despesas (Individuais 100% vs Conjuntas 50/50)</th>
         <th colspan="2" class="grp-hdr grp-tot bl">📌 Total Pago por Pessoa</th>
         <th colspan="3" class="grp-hdr bl">📊 Sobra / Falta no Mês</th>
         <th colspan="4" class="grp-hdr bl">🏦 Acumulado (Conta + FGTS)</th>
@@ -1293,10 +1306,14 @@ function rFluxo(){
     <tbody>
       ${R.map(r=>`<tr><td class="l"><a href="#" data-mes="${r.ym}">${lab(r.ym)}</a></td><td class="bl">${num(r.inc.Cristian)}</td><td>${num(r.inc.Pedro)}</td><td class="col-sum">${num(r.renda)}</td><td class="bl col-c">${num(r.ind.Cristian)}</td><td class="col-p">${num(r.ind.Pedro)}</td><td class="col-j">${num(r.conj)}</td><td class="col-j">${num(r.conjMeio)}</td><td class="bl col-c">${num(r.totC)}</td><td class="col-p">${num(r.totP)}</td><td class="bl ${cls(r.sobraC)}">${num(r.sobraC)}</td><td class="${cls(r.sobraP)}">${num(r.sobraP)}</td><td class="col-sum ${cls(r.sobra)}">${num(r.sobra)}</td><td class="bl ${cls(r.saldo)}">${num(r.saldo)}</td><td>${num(r.fg.Cristian)}</td><td>${num(r.fg.Pedro)}</td><td class="col-sum">${num(r.patr)}</td></tr>`).join('')}
     </tbody>
-  </table></div>
-  <div class="note">Despesas individuais ficam 100% na conta de quem gastou (incluindo QuintoAndar no Pedro). Despesas Conjuntas (Aluguel, Carro e compras conjuntas) são sempre divididas 50/50 (meio a meio).</div></div>
-  <div class="panel"><h2>Despesas fora do cartão por categoria</h2><div class="tw"><table><tr><th class="l">Mês</th>${cats.map(c=>`<th>${esc(c)}</th>`).join('')}<th>Total</th></tr>
-  ${R.map(r=>`<tr><td class="l">${lab(r.ym)}</td>${cats.map(c=>`<td>${r.offc[c]?num(r.offc[c]):''}</td>`).join('')}<td><b>${num(r.fora)}</b></td></tr>`).join('')}</table></div></div>`;
+  </table></div></div>
+  <details class="acc">
+    <summary><span>📊 Despesas fora do cartão por categoria (${cats.length} categorias)</span></summary>
+    <div class="acc-body">
+      <div class="tw"><table><tr><th class="l">Mês</th>${cats.map(c=>`<th>${esc(c)}</th>`).join('')}<th>Total</th></tr>
+      ${R.map(r=>`<tr><td class="l">${lab(r.ym)}</td>${cats.map(c=>`<td>${r.offc[c]?num(r.offc[c]):''}</td>`).join('')}<td><b>${num(r.fora)}</b></td></tr>`).join('')}</table></div>
+    </div>
+  </details>`;
 }
 function drawFluxo(){
   const R=flow(),L=R.map(r=>lab(r.ym)),tip={plugins:{tooltip:{callbacks:{label:c=>c.dataset.label+': '+brl(c.parsed.y)}}}};
@@ -1352,26 +1369,34 @@ function rPlanos(){
   const E=S.extras,R=plans(),L=R[R.length-1],hit=E.reserva.meta?R.find(r=>r.res>=E.reserva.meta):null;
   const tbl=(l,head,rows)=>`<div class="tw"><table><tr>${head}<th></th></tr>${rows}</table></div><div class="bar" style="margin-top:8px"><button class="b g" data-act="add-x" data-list="${l}">+ Adicionar</button></div>`;
   return `<div class="panel" style="padding:12px 18px"><div class="bar" style="margin:0;justify-content:space-between">
-   <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" data-s="includePlans" ${S.settings.includePlans?'checked':''}> <b>Refletir planos e projetos nas projeções globais (Visão geral, Visão mensal e Fluxo de caixa)</b></label>
-   <span class="note">Quando desmarcado, os planos e projetos ficam restritos às suas abas.</span></div></div>
-  <div class="cards"><div class="card"><small>Reserva de emergência (${lab(L.ym)})</small><b>${brl(L.res)}</b><small>${E.reserva.meta?(hit?'meta atingida em '+lab(hit.ym):'meta não atingida até '+lab(L.ym)):'sem meta definida'}</small></div>
-   <div class="card"><small>Investimentos (${lab(L.ym)})</small><b>${brl(L.invT)}</b></div>
-   <div class="card"><small>Projetos de Vida (${lab(L.ym)})</small><b>${brl(L.projT)}</b><small>${(E.projetos||[]).length} projeto(s) · editar na aba Projetos</small></div>
-   <div class="card"><small>FGTS após saques</small><b>${brl(L.fgT)}</b></div>
-   <div class="card"><small>Saldo em conta ajustado</small><b class="${cls(L.saldo)}">${brl(L.saldo)}</b></div>
-   <div class="card"><small>Patrimônio total</small><b>${brl(L.patr)}</b></div></div>
+   <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" data-s="includePlans" ${S.settings.includePlans?'checked':''}> <b>Refletir planos e projetos nas projeções globais</b></label>
+   <span class="note">Quando desmarcado, fica restrito às abas Planos e Projetos.</span></div></div>
+  <div class="cards">
+   <div class="card"><small>Reserva de emergência (${lab(L.ym)})</small><b>${brl(L.res)}</b><small class="sub">${E.reserva.meta?(hit?'meta atingida em '+lab(hit.ym):'meta não atingida até '+lab(L.ym)):'sem meta definida'}</small></div>
+   <div class="card"><small>Investimentos &amp; Projetos (${lab(L.ym)})</small><b>${brl(L.invT+L.projT)}</b><small class="sub">Inv.: ${brl(L.invT)} · Projetos (${(E.projetos||[]).length}): ${brl(L.projT)}</small></div>
+   <div class="card"><small>Saldo ajustado &amp; FGTS</small><b class="${cls(L.saldo)}">${brl(L.saldo+L.fgT)}</b><small class="sub">Conta: ${brl(L.saldo)} · FGTS: ${brl(L.fgT)}</small></div>
+   <div class="card c-pos"><small>Patrimônio total (${lab(L.ym)})</small><b>${brl(L.patr)}</b><small class="sub">Projeção consolidada com planos</small></div>
+  </div>
+  <div class="sec-lbl">Reserva &amp; Investimentos</div>
   <div class="panel"><h2>Reserva de emergência</h2><div class="bar">
    <label class="note">Meta (R$) <input type="number" data-res="meta" value="${E.reserva.meta||''}"></label>
    <label class="note">Saldo atual <input type="number" data-res="saldo" value="${E.reserva.saldo||''}"></label>
    <label class="note">Aporte mensal <input type="number" data-res="aporte" value="${E.reserva.aporte||''}"></label>
    <label class="note">Rendimento <input type="number" step="0.01" data-res="rend" value="${E.reserva.rend}" style="width:70px">% a.m.</label></div>
-   <div class="note">O aporte para quando a meta é atingida. Sugestão: 6 meses de despesas.</div></div>
+   <div class="note">O aporte para automaticamente ao atingir a meta (sugestão: 6 meses de despesas).</div></div>
   <div class="panel"><h2>Investimentos</h2>${tbl('inv','<th class="l">Nome</th><th class="l">Quem</th><th>Aporte mensal</th><th>Saldo atual</th><th>Rend. % a.m.</th><th class="l">Início</th><th class="l">Fim</th>',E.inv.map(x=>`<tr data-id="${x.id}" data-list="inv">${xin('inv',x,'nome','text',170)}${xsel(x,'quem',{Cristian:'Cristian',Pedro:'Pedro',Conjunto:'Conjunto'})}${xin('inv',x,'valor')}${xin('inv',x,'saldo')}${xin('inv',x,'rend',undefined,70)}${xin('inv',x,'inicio','month',122)}${xin('inv',x,'fim','month',122)}<td><button class="b r" data-act="del-x">×</button></td></tr>`).join(''))}</div>
+  <div class="sec-lbl">Saques FGTS &amp; Compras Planejadas</div>
   <div class="panel"><h2>Saques do FGTS</h2>${tbl('saques','<th class="l">Descrição</th><th class="l">Quem</th><th class="l">Mês</th><th>Valor</th><th class="l">Destino</th>',E.saques.map(x=>`<tr data-id="${x.id}" data-list="saques">${xin('saques',x,'nome','text',170)}${xsel(x,'quem',{Cristian:'Cristian',Pedro:'Pedro'})}${xin('saques',x,'mes','month',122)}${xin('saques',x,'valor')}${xsel(x,'destino',{caixa:'Entra no saldo em conta',externo:'Uso direto (imóvel/financiamento)'})}<td><button class="b r" data-act="del-x">×</button></td></tr>`).join(''))}</div>
   <div class="panel"><h2>Compras planejadas</h2>${tbl('compras','<th class="l">Descrição</th><th class="l">Quem</th><th class="l">1º mês</th><th>Valor total</th><th>Parcelas</th>',E.compras.map(x=>`<tr data-id="${x.id}" data-list="compras">${xin('compras',x,'nome','text',170)}${xsel(x,'quem',{Cristian:'Cristian',Pedro:'Pedro',Conjunto:'Conjunto'})}${xin('compras',x,'mes','month',122)}${xin('compras',x,'valor')}${xin('compras',x,'np',undefined,60,'1')}<td><button class="b r" data-act="del-x">×</button></td></tr>`).join(''))}<div class="note">Viagem, móveis, reforma etc. Com parcelas, o valor é dividido entre os meses.</div></div>
-  <div class="panel"><h2>Patrimônio com os planos</h2><canvas id="cp"></canvas>
-  <div class="tw" style="margin-top:10px"><table><tr><th>Mês</th><th>Sobra ajustada</th><th>Saldo em conta</th><th>Reserva</th><th>Investimentos</th><th>Projetos</th><th>FGTS</th><th>Patrimônio</th></tr>
-  ${R.map(r=>`<tr><td>${lab(r.ym)}</td><td class="${cls(r.sobra)}">${num(r.sobra)}</td><td class="${cls(r.saldo)}">${num(r.saldo)}</td><td>${num(r.res)}</td><td>${num(r.invT)}</td><td>${num(r.projT)}</td><td>${num(r.fgT)}</td><td><b>${num(r.patr)}</b></td></tr>`).join('')}</table></div></div>`;
+  <div class="sec-lbl">Evolução do Patrimônio</div>
+  <div class="panel"><h2>Patrimônio com os planos</h2><canvas id="cp"></canvas></div>
+  <details class="acc">
+    <summary><span>📅 Tabela detalhada mês a mês (${R.length} meses)</span></summary>
+    <div class="acc-body">
+      <div class="tw"><table><tr><th>Mês</th><th>Sobra ajustada</th><th>Saldo em conta</th><th>Reserva</th><th>Investimentos</th><th>Projetos</th><th>FGTS</th><th>Patrimônio</th></tr>
+      ${R.map(r=>`<tr><td>${lab(r.ym)}</td><td class="${cls(r.sobra)}">${num(r.sobra)}</td><td class="${cls(r.saldo)}">${num(r.saldo)}</td><td>${num(r.res)}</td><td>${num(r.invT)}</td><td>${num(r.projT)}</td><td>${num(r.fgT)}</td><td><b>${num(r.patr)}</b></td></tr>`).join('')}</table></div>
+    </div>
+  </details>`;
 }
 function drawPlanos(){
   const R=plans(),c=document.getElementById('cp');if(!c)return;
@@ -1734,11 +1759,11 @@ function rCartao(){
   const vt=Ms.map((_,k)=>k===0?realVar0:vRows.reduce((a,r)=>a+r.vals[k],0));
   const s=S.settings;
   const presets=[['Gasolina','Transporte'],['Alimentação fora','Alimentação'],['Mercado','Mercado'],['Delivery / iFood','Alimentação'],['Farmácia','Saúde'],['Lazer','Lazer']];
-  const varPanel=`<div class="panel"><div class="bar" style="justify-content:space-between">
-    <h2 style="margin:0">Estimativas de gastos futuros (opcionais – lance se quiser projetar)</h2>
+  const varPanel=`<div class="panel"><div class="bar" style="justify-content:space-between;margin-bottom:8px">
+    <h2 style="margin:0">Estimativas de gastos futuros (opcionais)</h2>
     <label class="note"><input type="checkbox" data-s="includeVar" ${s.includeVar?'checked':''}> Ativar estimativas nos meses futuros</label>
   </div>
-  <div class="note" style="margin-bottom:8px">Por padrão, <b>não há simulação automática de variáveis</b>: os próximos meses mostram apenas o que já está programado (parcelas, despesas fixas e assinaturas). Caso queira simular um gasto futuro (como gasolina, alimentação fora etc.), adicione abaixo e escolha se é <b>Individual (Cristian / Pedro)</b> ou <b>Conjunto (50/50)</b>:</div>
+  <div class="note" style="margin-bottom:8px">Por padrão, futuros exibem apenas compromissos programados. Adicione estimativas opcionais abaixo (Individual ou Conjunto 50/50):</div>
   <div class="bar">
     ${presets.map(([n,c])=>`<button class="b g" data-act="add-vitem" data-nome="${n}" data-cat="${c}">+ ${n}</button>`).join('')}
     <button class="b" data-act="add-vitem" data-nome="Nova estimativa" data-cat="Outros">+ Outra estimativa</button>
@@ -1755,8 +1780,9 @@ function rCartao(){
     <td class="l"><input type="month" data-vf="fim" value="${v.fim||''}"></td>
     <td><button class="b r" data-act="del-vitem" title="Excluir estimativa">×</button></td>
   </tr>`).join('')}</table></div>`:`<div class="note">Nenhuma estimativa manual adicionada. Somente parcelas, despesas fixas e assinaturas estão sendo projetadas.</div>`}</div>`;
-  return varPanel+`<div class="panel"><h2>Cartão – visão: ${esc(document.getElementById('view').selectedOptions[0].text)}</h2>
-  <div class="note">Mês atual (${lab(Ms[0])}) exibe os lançamentos já feitos na fatura. Meses seguintes mostram apenas os compromissos programados (parcelas, fixas e assinaturas) e as estimativas que você adicionar acima.</div>
+  return varPanel+`<div class="sec-lbl">Compromissos &amp; Projeção Mensal</div>
+  <div class="panel"><h2>Cartão – visão: ${esc(document.getElementById('view').selectedOptions[0].text)}</h2>
+  <div class="note">Mês atual (${lab(Ms[0])}) mostra os lançamentos reais; meses seguintes mostram parcelas, fixas, assinaturas e estimativas ativas.</div>
   <div class="tw"><table><tr><th class="l">Item</th><th class="l">Quem</th><th class="l">Até</th>${Ms.map(m=>`<th>${lab(m)}</th>`).join('')}</tr>
   ${sections}
   <tr class="tot"><td class="l">PROGRAMADO NO CARTÃO (parcelas + fixas + assinaturas)</td><td></td><td></td>${comp.map(v=>`<td>${num(v)}</td>`).join('')}</tr>
@@ -1829,9 +1855,11 @@ function rFora(){
   const renda=tot(rec),fora=tot(des),pagoVal=paidDes.reduce((a,o)=>a+offV(o,ref),0);
   const conjDes=actDes.filter(o=>o.quem==='Conjunto').reduce((a,o)=>a+offV(o,ref),0);
   const indDes=fora-conjDes;
-   const row=(o,isRec)=>{const[t,bg,fg]=st(o),ok=isPaid(ref,o.id),active=act(o),ds=active&&!isRec?dueStatus(o,ref):null;return `<tr data-id="${o.id}" style="${t==='encerrado'?'opacity:.55':''}">
+  const catOpts=sel=>cats.map(c=>`<option value="${esc(c)}" ${c===(sel||'Outros')?'selected':''}>${esc(c)}</option>`).join('');
+  const row=(o,isRec)=>{const[t,bg,fg]=st(o),ok=isPaid(ref,o.id),active=act(o),ds=active&&!isRec?dueStatus(o,ref):null;return `<tr data-id="${o.id}" style="${t==='encerrado'?'opacity:.55':''}">
    <td class="l"><input class="d" data-f="nome" value="${esc(o.nome)}"></td>
    ${isRec?'':`<td class="l">${active?`<input type="checkbox" data-paid="${o.id}" data-ym="${ref}" ${ok?'checked':''} title="Marcar como pago em ${lab(ref)}">`:'–'}</td>`}
+   ${isRec?'':`<td class="l"><select data-f="cat">${catOpts(o.cat)}</select></td>`}
    <td class="l"><select data-f="quem">${quemOpts(o.quem)}</select></td>
    <td><input type="number" step="0.01" data-f="valor" value="${o.valor}"></td>
    <td><div style="display:inline-flex;align-items:center;gap:5px"><input type="number" min="1" max="31" data-f="venc" value="${o.venc||''}" placeholder="dia" style="width:54px">${ds&&!ok&&ds.urgent?`<span class="due-badge ${ds.cls}">${ds.label}</span>`:''}</div></td>
@@ -1842,20 +1870,39 @@ function rFora(){
    <td><input type="number" step="0.1" data-f="reaj" value="${o.reaj||''}" placeholder="0" style="width:60px"></td>
    <td><span class="tag" style="background:${bg};color:${fg}">${t}</span></td>
    <td><button class="b r" data-act="del-off">×</button></td></tr>`};
-  const group=(title,list,cat,kind)=>{const isRec=kind==='receita',sorted=[...list].sort((a,b)=>(a.venc||99)-(b.venc||99));return `<div class="panel"><div class="bar" style="justify-content:space-between"><h2 style="margin:0">${esc(title)} <span class="note">· ${brl(tot(list))} em ${lab(ref)}</span></h2>
-   <button class="b g" data-act="add-off" data-cat="${esc(cat)}" data-kind="${kind}" ${isRec?'data-quem="Cristian"':''}>+ Adicionar</button></div>
-   ${sorted.length?`<div class="tw"><table><tr><th class="l">Nome</th>${isRec?'':'<th class="l">Pago</th>'}<th class="l">Quem</th><th>Valor</th><th>Venc.</th><th class="l">Frequência</th><th class="l">Início</th><th class="l">Fim</th><th>Parcelas</th><th>Reajuste % a.a.</th><th></th><th></th></tr>${sorted.map(o=>row(o,isRec)).join('')}</table></div>`:'<div class="note">Nenhum item.</div>'}</div>`};
-  return `<div class="bar"><b>Mês de referência</b><select id="fom">${Ms.map(m=>`<option value="${m}" ${m===ref?'selected':''}>${lab(m)}</option>`).join('')}</select>
-   <button class="b g" data-act="add-cat">+ Nova categoria</button></div>
-  <div class="cards"><div class="card c-pos"><small>Renda no mês</small><b>${brl(renda)}</b><span class="sub">${lab(ref)}</span></div>
-   <div class="card c-warn"><small>Conjuntas Fora do Cartão (50/50)</small><b>${brl(conjDes)}</b><span class="sub">${brl(conjDes/2)} p/ Cristian · ${brl(conjDes/2)} p/ Pedro</span></div>
-   <div class="card"><small>Individuais Fora do Cartão</small><b>${brl(indDes)}</b><span class="sub">Total fora do cartão: ${brl(fora)}</span></div>
-   <div class="card ${paidDes.length===actDes.length&&actDes.length?'c-pos':'c-warn'}"><small>Contas pagas (${lab(ref)})</small><b>${paidDes.length}/${actDes.length}</b><span class="sub">${brl(pagoVal)} pagos · faltam ${brl(Math.max(0,fora-pagoVal))}</span></div>
-   <div class="card ${renda-fora>=0?'c-pos':'c-neg'}"><small>Sobra antes do cartão</small><b class="${cls(renda-fora)}">${brl(renda-fora)}</b><span class="sub">Disponível p/ cartão e caixa</span></div></div>
+  const recSorted=[...rec].sort((a,b)=>(a.venc||99)-(b.venc||99));
+  const desGroups=cats.map(c=>({c,l:des.filter(o=>(o.cat||'Outros')===c).sort((a,b)=>(a.venc||99)-(b.venc||99))})).filter(g=>g.l.length>0);
+  return `<div class="bar" style="justify-content:space-between;margin-bottom:10px">
+    <div class="bar" style="margin:0"><b>Mês de referência</b><select id="fom">${Ms.map(m=>`<option value="${m}" ${m===ref?'selected':''}>${lab(m)}</option>`).join('')}</select></div>
+    <div class="bar" style="margin:0">
+      <button class="b" data-act="add-off" data-cat="Outros" data-kind="despesa">+ Nova Despesa</button>
+      <button class="b g" data-act="add-off" data-cat="Renda" data-kind="receita" data-quem="Cristian">+ Nova Renda</button>
+      <button class="b g" data-act="add-cat">+ Nova categoria</button>
+    </div>
+  </div>
+  <div class="cards">
+   <div class="card c-pos"><small>Renda no mês (${lab(ref)})</small><b>${brl(renda)}</b><small class="sub">Sobra p/ cartão &amp; caixa: <b class="${cls(renda-fora)}">${brl(renda-fora)}</b></small></div>
+   <div class="card c-warn"><small>Conjuntas Fora do Cartão (50/50)</small><b>${brl(conjDes)}</b><small class="sub">${brl(conjDes/2)} p/ Cristian · ${brl(conjDes/2)} p/ Pedro</small></div>
+   <div class="card"><small>Individuais Fora do Cartão</small><b>${brl(indDes)}</b><small class="sub">Total fora do cartão: ${brl(fora)}</small></div>
+   <div class="card ${paidDes.length===actDes.length&&actDes.length?'c-pos':'c-warn'}"><small>Contas pagas (${lab(ref)})</small><b>${paidDes.length}/${actDes.length}</b><small class="sub">${brl(pagoVal)} pagos · faltam ${brl(Math.max(0,fora-pagoVal))}</small></div>
+  </div>
   ${dueAlertsPanel(ref,true)}
-  <div class="note">Despesas marcadas como "Conjunto" (ex.: Aluguel e Carro) são divididas 50/50 entre Cristian e Pedro. Despesas com nome individual ficam 100% para a respectiva pessoa.</div>
-  ${group('Rendas',rec,'Renda','receita')}
-  ${cats.map(c=>({c,l:des.filter(o=>(o.cat||'Outros')===c)})).filter(g=>g.l.length||OCATS.includes(g.c)).map(g=>group(g.c,g.l,g.c,'despesa')).join('')}`;
+  <div class="sec-lbl">Rendas &amp; Contas Recorrentes</div>
+  <div class="panel">
+    <div class="bar" style="justify-content:space-between"><h2 style="margin:0">💰 Rendas (Entradas) <span class="note">· ${brl(renda)} em ${lab(ref)}</span></h2>
+      <button class="b g" data-act="add-off" data-cat="Renda" data-kind="receita" data-quem="Cristian">+ Adicionar Renda</button>
+    </div>
+    ${recSorted.length?`<div class="tw"><table><tr><th class="l">Nome</th><th class="l">Quem</th><th>Valor</th><th>Dia</th><th class="l">Frequência</th><th class="l">Início</th><th class="l">Fim</th><th>Parc.</th><th>Reaj. %</th><th></th><th></th></tr>${recSorted.map(o=>row(o,true)).join('')}</table></div>`:'<div class="note">Nenhuma renda cadastrada.</div>'}
+  </div>
+  <div class="panel">
+    <div class="bar" style="justify-content:space-between"><h2 style="margin:0">🧾 Despesas Fora do Cartão <span class="note">· ${brl(fora)} em ${lab(ref)} (${des.length} itens)</span></h2>
+      <button class="b g" data-act="add-off" data-cat="Outros" data-kind="despesa">+ Adicionar Despesa</button>
+    </div>
+    ${desGroups.length?`<div class="tw"><table>
+      <tr><th class="l">Nome</th><th class="l">Pago</th><th class="l">Categoria</th><th class="l">Quem</th><th>Valor</th><th>Venc.</th><th class="l">Freq.</th><th class="l">Início</th><th class="l">Fim</th><th>Parc.</th><th>Reaj. %</th><th></th><th></th></tr>
+      ${desGroups.map(g=>`<tr class="sec"><td colspan="13"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(g.c)} · ${brl(tot(g.l))} em ${lab(ref)}</span><button class="b g" data-act="add-off" data-cat="${esc(g.c)}" data-kind="despesa" style="padding:2px 8px;font-size:11px">+ ${esc(g.c)}</button></div></td></tr>${g.l.map(o=>row(o,false)).join('')}`).join('')}
+    </table></div>`:'<div class="note">Nenhuma despesa fora do cartão cadastrada.</div>'}
+  </div>`;
 }
 
 function irpfYears(){
@@ -2054,70 +2101,75 @@ function rIrpf(){
   </table></div>`:`<div class="note">${emptyMsg}</div>`;
 
   return `<div class="panel">
-    <div class="bar" style="justify-content:space-between;margin-bottom:8px">
-      <div>
-        <h2 style="margin:0">🧾 Dossiê IRPF & Conciliação Fiscal — Ano-Calendário ${yr}</h2>
-        <div class="note" style="margin:2px 0 0">Evite malha fina da <b>Decred</b> (faturas ≥ R$ 5 mil/mês) e <b>e-Financeira</b> comprovando o rateio de despesas pagas pelo Pedro.</div>
-      </div>
-      <div class="bar no-print" style="margin:0">
+    <div class="bar" style="justify-content:space-between;margin-bottom:10px">
+      <div class="bar" style="margin:0">
         <label class="note" style="display:inline-flex;align-items:center;gap:6px"><b>Ano-calendário:</b>
           <select id="irpf-ano">${yrs.map(y=>`<option value="${y}" ${y===yr?'selected':''}>${y}</option>`).join('')}</select>
         </label>
+        <span class="note">Decred (≥ R$ 5 mil/mês) &amp; e-Financeira — ${yr}</span>
+      </div>
+      <div class="bar no-print" style="margin:0">
         <button class="b g" data-act="export-irpf">📊 Exportar Dossiê (.xlsx)</button>
         <button class="b" data-act="print-irpf">🖨️ Imprimir / PDF</button>
       </div>
     </div>
     <div class="cards" style="margin-bottom:0">
-      <div class="card"><small>Gastos no CPF Cristian (${yr})</small><b>${brl(data.tot.cristianCPF)}</b><small class="sub">Cartão: ${brl(data.tot.cardTotal)} · Fora: ${brl(data.tot.offTotal)}${data.tot.nDecred?` · <b>${data.tot.nDecred} mês(es) Decred ≥5k</b>`:''}</small></div>
-      <div class="card"><small>Parte calculada do Pedro (${yr})</small><b>${brl(data.tot.pedroCalc)}</b><small class="sub">Indiv. Pedro: ${brl(data.tot.pedroInd)} + 50% Conj.: ${brl(data.tot.conj50)}</small></div>
-      <div class="card ${data.tot.pixVal>0?'c-pos':'c-warn'}"><small>Transferido por Pedro (Pix registrado)</small><b>${brl(data.tot.pixVal)}</b><small class="sub">${data.tot.nPix}/12 meses com Pix · Diferença vs rateio: <b class="${diffPix<0?'neg':'pos'}">${diffPix>=0?'+':''}${brl(diffPix)}</b></small></div>
-      <div class="card"><small>Deduções Saúde + Educação (${yr})</small><b style="font-size:15px">Cristian: ${brl(ded.cTot)} · Pedro: ${brl(ded.pTot)}</b><small class="sub">${ded.pendCount?`<span class="neg">${ded.pendCount} item(ns) Conjunto sem CPF definido</span>`:'Todos os recibos separados por CPF ✓'}</small></div>
+      <div class="card"><small>Gastos no CPF Cristian (${yr})</small><b>${brl(data.tot.cristianCPF)}</b><small class="sub">Cartão: ${brl(data.tot.cardTotal)} · Fora: ${brl(data.tot.offTotal)}${data.tot.nDecred?` · <b>${data.tot.nDecred}m Decred ≥5k</b>`:''}</small></div>
+      <div class="card"><small>Parte calculada do Pedro (${yr})</small><b>${brl(data.tot.pedroCalc)}</b><small class="sub">Indiv.: ${brl(data.tot.pedroInd)} + 50% Conj.: ${brl(data.tot.conj50)}</small></div>
+      <div class="card ${data.tot.pixVal>0?'c-pos':'c-warn'}"><small>Transferido por Pedro (Pix)</small><b>${brl(data.tot.pixVal)}</b><small class="sub">${data.tot.nPix}/12 meses · Dif.: <b class="${diffPix<0?'neg':'pos'}">${diffPix>=0?'+':''}${brl(diffPix)}</b></small></div>
+      <div class="card"><small>Deduções Saúde + Educação (${yr})</small><b style="font-size:15px">C: ${brl(ded.cTot)} · P: ${brl(ded.pTot)}</b><small class="sub">${ded.pendCount?`<span class="neg">${ded.pendCount} item(ns) sem CPF</span>`:'Recibos separados por CPF ✓'}</small></div>
     </div>
   </div>
 
-  <div class="panel">
-    <h2>1. Classificação Fiscal & Dados do Dossiê (Reembolso vs Doação)</h2>
-    <div class="row" style="margin-bottom:10px">
-      <div style="flex:1;min-width:280px">
-        <div class="grid2" style="grid-template-columns:165px 1fr">
-          <label>Nome do declarante</label><input data-irpf="cristianNome" value="${esc(ir.cristianNome||'Cristian')}">
-          <label>Nome completo do Pedro</label><input data-irpf="pedroNome" value="${esc(ir.pedroNome||'Pedro')}" placeholder="Nome completo">
-          <label>CPF do Pedro</label><input data-irpf="pedroCpf" value="${esc(ir.pedroCpf||'')}" placeholder="000.000.000-00">
-        </div>
+  <div class="sec-lbl">Configuração Fiscal &amp; Texto para Declaração</div>
+  <div class="row">
+    <div class="panel" style="flex:1.15;min-width:300px">
+      <h2>1. Classificação Fiscal &amp; Dados (Reembolso vs Doação)</h2>
+      <div class="grid2" style="grid-template-columns:155px 1fr;margin-bottom:10px">
+        <label>Nome do declarante</label><input data-irpf="cristianNome" value="${esc(ir.cristianNome||'Cristian')}">
+        <label>Nome completo do Pedro</label><input data-irpf="pedroNome" value="${esc(ir.pedroNome||'Pedro')}" placeholder="Nome completo">
+        <label>CPF do Pedro</label><input data-irpf="pedroCpf" value="${esc(ir.pedroCpf||'')}" placeholder="000.000.000-00">
+        <label>Enquadramento fiscal</label>
+        <select data-irpf="modo">
+          <option value="reembolso" ${ir.modo!=='doacao'?'selected':''}>Reembolso / Rateio de Despesas (Recomendado)</option>
+          <option value="doacao" ${ir.modo==='doacao'?'selected':''}>Doação em espécie (com alerta ITCMD)</option>
+        </select>
+        ${ir.modo==='doacao'?`<label>Estado (UF) p/ ITCMD</label>
+        <select data-irpf="uf">${Object.entries(ITCMD_UFS).map(([k,v])=>`<option value="${k}" ${(ir.uf||'SP')===k?'selected':''}>${v.nome}</option>`).join('')}</select>
+        <label>Teto isenção manual (R$)</label>
+        <input type="number" step="0.01" data-irpf="itcmdTeto" value="${ir.itcmdTeto??''}" placeholder="${ufInfo.teto?ufInfo.teto:'0 (sem isenção)'}">`:''}
       </div>
-      <div style="flex:1.2;min-width:300px">
-        <div class="grid2" style="grid-template-columns:180px 1fr">
-          <label>Enquadramento fiscal</label>
-          <select data-irpf="modo">
-            <option value="reembolso" ${ir.modo!=='doacao'?'selected':''}>Reembolso / Rateio de Despesas (Recomendado)</option>
-            <option value="doacao" ${ir.modo==='doacao'?'selected':''}>Doação em espécie (com alerta ITCMD)</option>
-          </select>
-          ${ir.modo==='doacao'?`<label>Estado (UF) p/ ITCMD</label>
-          <select data-irpf="uf">${Object.entries(ITCMD_UFS).map(([k,v])=>`<option value="${k}" ${(ir.uf||'SP')===k?'selected':''}>${v.nome}</option>`).join('')}</select>
-          <label>Teto isenção manual (R$)</label>
-          <input type="number" step="0.01" data-irpf="itcmdTeto" value="${ir.itcmdTeto??''}" placeholder="${ufInfo.teto?ufInfo.teto:'0 (sem isenção)'}">`:''}
-        </div>
-        <div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">
-          <label class="note" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" data-irpf="includeOffInCristian" ${ir.includeOffInCristian!==false?'checked':''}> Incluir contas fora do cartão na coluna "CPF Cristian"</label>
-          <label class="note" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" data-irpf="useCalcIfNoPix" ${ir.useCalcIfNoPix!==false?'checked':''}> Se Pix ainda não registrado, simular texto pelo rateio calculado</label>
-        </div>
+      <div style="margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap">
+        <label class="note" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" data-irpf="includeOffInCristian" ${ir.includeOffInCristian!==false?'checked':''}> Incluir contas fora do cartão em "CPF Cristian"</label>
+        <label class="note" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" data-irpf="useCalcIfNoPix" ${ir.useCalcIfNoPix!==false?'checked':''}> Simular texto pelo rateio se sem Pix</label>
       </div>
+      ${ir.modo!=='doacao'?`<div class="info-ok">
+        <b>✓ Recomendado: Reembolso / Rateio de Despesas Comuns</b><br>
+        <small>Ressarcimento de faturas e contas compartilhadas não gera acréscimo patrimonial nem fato gerador de <b>ITCMD estadual</b>.</small>
+      </div>`:`<div class="${overItcmd?'danger-box':'warn'}">
+        <b>${overItcmd?'⚠️ ALERTA DE ITCMD ESTADUAL':'ℹ️ Monitoramento de ITCMD Estadual'} — ${esc(ufInfo.nome)} (${ufInfo.aliq})</b><br>
+        <small>${esc(ufInfo.regra)}. Acumulado: <b>${brl(valRef)}</b> ${tetoEfetivo>0?`vs teto de <b>${brl(tetoEfetivo)}</b> (<b>${pctItcmd}%</b>).`:'— <b>sem isenção geral neste estado!</b>'}
+        ${overItcmd?'<br><b>Atenção:</b> acima do limite estadual pode incidir ITCMD; avalie usar <b>Reembolso / Rateio</b>.':''}</small>
+      </div>`}
     </div>
-    ${ir.modo!=='doacao'?`<div class="info-ok">
-      <b>✓ Classificação recomendada: Reembolso / Rateio de Despesas Comuns</b><br>
-      <small>Contabilmente, o ressarcimento de despesas compartilhadas e compras de terceiros no cartão não gera acréscimo patrimonial nem fato gerador de <b>ITCMD estadual</b>. Mantenha os comprovantes Pix vinculados abaixo junto às faturas do cartão.</small>
-    </div>`:`<div class="${overItcmd?'danger-box':'warn'}">
-      <b>${overItcmd?'⚠️ ALERTA DE ITCMD ESTADUAL':'ℹ️ Monitoramento de ITCMD Estadual'} — ${esc(ufInfo.nome)} (Alíquota ${ufInfo.aliq})</b><br>
-      <small>${esc(ufInfo.regra)}. Valor acumulado no ano: <b>${brl(valRef)}</b> ${tetoEfetivo>0?`vs teto de isenção de <b>${brl(tetoEfetivo)}</b> (<b>${pctItcmd}%</b> utilizado).`:'— <b>este estado não possui isenção geral para doações em dinheiro!</b>'}
-      ${overItcmd?'<br><b>Atenção:</b> ao declarar como <b>Doação</b> acima do limite estadual, a Sefaz pode cobrar ITCMD (e em estados como SP é exigida declaração estadual mesmo quando isento). Considere alternar para <b>Reembolso / Rateio</b> se os valores forem ressarcimento de faturas e contas comuns.':''}</small>
-    </div>`}
+
+    <div class="panel" style="flex:0.95;min-width:290px">
+      <div class="bar" style="justify-content:space-between;margin-bottom:8px">
+        <h2 style="margin:0">3. Texto Pronto p/ IRPF</h2>
+        <button class="b no-print" id="btn-copy-irpf" data-act="copy-irpf">📋 Copiar texto</button>
+      </div>
+      <div class="note" style="margin-bottom:8px">Ficha: <b>${ir.modo==='doacao'?'Rendimentos Isentos → Código 14 (Doações)':'Rendimentos Isentos / Info. Complementares'}</b></div>
+      ${data.tot.pixVal===0&&data.tot.pedroCalc>0?`<div class="note" style="color:#b4440c;margin-bottom:8px">ℹ️ Sem Pix registrado em ${yr}; usando ${ir.useCalcIfNoPix!==false?'o rateio calculado':'R$ 0,00'}.</div>`:''}
+      <textarea id="irpf-txt" class="irpf-copy" readonly style="min-height:140px">${esc(txt)}</textarea>
+    </div>
   </div>
 
+  <div class="sec-lbl">Conciliação Mensal (${yr})</div>
   <div class="panel">
     <div class="bar" style="justify-content:space-between">
       <div>
         <h2 style="margin:0">2. Tabela de Conciliação Mensal Pronta para Declaração (${yr})</h2>
-        <div class="note" style="margin:2px 0 0">Clique em <b>Registrar / Editar</b> em qualquer mês para informar Data, Valor e Código E2E do Pix recebido.</div>
+        <div class="note" style="margin:2px 0 0">Clique em <b>+ Pix / ✎ Editar</b> em qualquer mês para informar Data, Valor e Código E2E.</div>
       </div>
     </div>
     <div class="tw"><table>
@@ -2159,25 +2211,12 @@ function rIrpf(){
     </table></div>
   </div>
 
-  <div class="panel">
-    <div class="bar" style="justify-content:space-between">
-      <div>
-        <h2 style="margin:0">3. Texto Pronto para Copiar e Colar na Declaração do IRPF</h2>
-        <div class="note" style="margin:2px 0 0">Ficha sugerida no IRPF: <b>${ir.modo==='doacao'?'Rendimentos Isentos e Não Tributáveis → Código 14 (Transferências patrimoniais - doações)':'Rendimentos Isentos / Informações Complementares (discriminação da origem dos recursos)'}</b>.</div>
-      </div>
-      <div class="bar no-print" style="margin:0">
-        <button class="b" id="btn-copy-irpf" data-act="copy-irpf">📋 Copiar texto para IRPF</button>
-      </div>
-    </div>
-    ${data.tot.pixVal===0&&data.tot.pedroCalc>0?`<div class="note" style="color:#b4440c;margin-bottom:8px">ℹ️ Ainda não há Pix registrado para ${yr}; o texto abaixo está usando ${ir.useCalcIfNoPix!==false?'o total calculado pelo rateio':'R$ 0,00'}. Registre os Pix mensais acima para usar os valores exatos dos comprovantes.</div>`:''}
-    <textarea id="irpf-txt" class="irpf-copy" readonly>${esc(txt)}</textarea>
-  </div>
-
+  <div class="sec-lbl">Deduções por CPF &amp; Bens em 31/12/${yr}</div>
   <div class="panel">
     <div class="bar" style="justify-content:space-between">
       <div>
         <h2 style="margin:0">4. Deduções de Saúde e Educação Separadas por CPF (${yr})</h2>
-        <div class="note" style="margin:2px 0 0">Cada titular deve lançar na própria declaração apenas despesas com recibo/NF emitida no seu CPF. <b>Despesas de farmácia não são dedutíveis avulsas no IRPF.</b></div>
+        <div class="note" style="margin:2px 0 0">Lance em cada declaração apenas recibos/NFs no respectivo CPF (farmácias avulsas não são dedutíveis).</div>
       </div>
       <label class="note no-print" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" data-irpf="includeProjHealth" ${ir.includeProjHealth?'checked':''}> Incluir meses projetados (${yr})</label>
     </div>
@@ -2193,8 +2232,8 @@ function rIrpf(){
   <div class="panel">
     <div class="bar" style="justify-content:space-between">
       <div>
-        <h2 style="margin:0">5. Saldos em 31/12/${yr} & Bens / Financiamentos no Ano (Bens e Direitos)</h2>
-        <div class="note" style="margin:2px 0 0">Informe os saldos oficiais dos extratos bancários e FGTS em 31/12/${yr} (Grupo 06 / 99 do IRPF) e confira os bens quitados ou parcelados ao longo do ano.</div>
+        <h2 style="margin:0">5. Saldos em 31/12/${yr} &amp; Bens / Financiamentos no Ano (Bens e Direitos)</h2>
+        <div class="note" style="margin:2px 0 0">Informe os saldos dos extratos em 31/12/${yr} (Grupo 06 / 99) e confira os bens/parcelamentos no ano.</div>
       </div>
       ${pat.est.fgtsC!=null?`<button class="b g no-print" data-act="fill-est-saldos" style="font-size:12px">⚡ Preencher FGTS estimados (${lab(yr+'-12')})</button>`:''}
     </div>
@@ -2275,28 +2314,43 @@ function exportIrpfXlsx(yr){
 }
 function rPrem(){
   const s=S.settings,snaps=loadSnaps(),fd=t=>new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
-  return `<div class="panel"><h2>Ajuda, Guia de Uso &amp; Celular</h2>
-   <div class="note" style="margin-bottom:10px">Novo por aqui? O guia interativo explica a <b>Regra de Ouro (100% Individual × 50/50 Conjunto)</b>, a rotina mensal em 4 passos, o mapa de todas as abas e como instalar o app no iPhone/Android.</div>
-   <div class="bar"><button class="b" type="button" data-act="open-guide">📖 Abrir Guia Rápido &amp; Instalação no Celular</button>
-    <button class="b g" type="button" data-act="reset-welcome">Mostrar banner de boas-vindas na Visão geral</button></div></div>
-  <div class="panel"><h2>Premissas gerais</h2><div class="grid2">
-   <label>Mês da fatura atual (base)</label><input type="month" data-s="base" value="${s.base}">
-   <label>Meses projetados no Cartão</label><input type="number" data-s="horizon" value="${s.horizon}" min="1" max="36">
+  return `<div class="sec-lbl">Guia &amp; Parâmetros do Portal</div>
+  <div class="row">
+    <div class="panel" style="flex:1;min-width:290px">
+      <h2>Ajuda, Guia de Uso &amp; Celular</h2>
+      <div class="note" style="margin-bottom:10px">Explica a <b>Regra de Ouro (100% Individual × 50/50 Conjunto)</b>, a rotina mensal em 4 passos, mapa de abas e instalação no celular.</div>
+      <div class="bar" style="margin:0">
+        <button class="b" type="button" data-act="open-guide">📖 Abrir Guia Rápido &amp; Celular</button>
+        <button class="b g" type="button" data-act="reset-welcome">Reexibir boas-vindas</button>
+      </div>
+    </div>
+    <div class="panel" style="flex:1;min-width:290px">
+      <h2>Premissas gerais</h2>
+      <div class="grid2" style="margin-bottom:8px">
+        <label>Mês da fatura atual (base)</label><input type="month" data-s="base" value="${s.base}">
+        <label>Meses projetados no Cartão</label><input type="number" data-s="horizon" value="${s.horizon}" min="1" max="36">
+      </div>
+      <div class="note">Fluxo, Geral e Mensal projetam até <b>dezembro do ano seguinte ao mês base</b> (${lab(nextYearDec())}), ajustável no seletor "Projetar até".</div>
+    </div>
   </div>
-  <div class="note">No Fluxo de caixa, Visão Geral e Visão Mensal, o horizonte padrão acompanha sempre <b>dezembro do ano seguinte ao mês base</b> (${lab(nextYearDec())}), podendo ser ajustado no seletor "Projetar até" do topo da aba.</div></div>
-  <div class="panel"><h2>Atalhos de teclado</h2>
-   <div class="note">• <code>Alt + N</code>: Abrir modal de novo lançamento rápido (Cartão, Fora do cartão ou Estimativa futura)<br>• <code>Alt + T</code>: Alternar entre modo claro e modo escuro<br>• <code>Esc</code>: Fechar modal rápido ou limpar seleção em lote</div></div>
+  <div class="sec-lbl">Backups &amp; Pontos de Restauração</div>
   <div class="panel"><h2>Dados e backups</h2><div class="bar">
-   <button class="b g" data-act="export-json">Exportar backup (json)</button>
+   <button class="b g" data-act="export-json">Exportar backup (.json)</button>
    <label class="b g">Importar backup<input type="file" accept=".json" id="impj" hidden></label>
    <button class="b" data-act="add-snap">+ Criar ponto de restauração</button>
    <button class="b r" data-act="reset">Restaurar dados originais</button></div>
-   <div class="note">Os dados ficam salvos no Supabase e neste navegador.</div></div>
+   <div class="note">Os dados ficam sincronizados no Supabase e salvos localmente neste navegador.</div></div>
   <div class="panel"><h2>Pontos de restauração automáticos (últimos 5)</h2>
    <div class="note">Criados automaticamente antes de importar faturas, importar backups ou restaurar dados.</div>
    ${snaps.length?`<div class="tw" style="margin-top:8px"><table><tr><th class="l">Data/Hora</th><th class="l">Motivo</th><th class="l">Por</th><th>Lançamentos</th><th>Fora do cartão</th><th></th></tr>
    ${snaps.map(sn=>`<tr data-snap="${sn.id}"><td class="l">${fd(sn.at)}</td><td class="l"><b>${esc(sn.motivo)}</b></td><td class="l">${esc(sn.by||'Local')}</td><td>${sn.txCount}</td><td>${sn.offCount}</td>
-   <td><button class="b g" data-act="restore-snap">Restaurar</button> <button class="b r" data-act="del-snap" title="Excluir ponto">×</button></td></tr>`).join('')}</table></div>`:'<div class="note" style="margin-top:8px">Nenhum ponto de restauração salvo ainda.</div>'}</div>`;
+   <td><button class="b g" data-act="restore-snap">Restaurar</button> <button class="b r" data-act="del-snap" title="Excluir ponto">×</button></td></tr>`).join('')}</table></div>`:'<div class="note" style="margin-top:8px">Nenhum ponto de restauração salvo ainda.</div>'}</div>
+  <details class="acc">
+    <summary><span>⌨️ Atalhos de teclado</span><span class="note">Alt+N · Alt+T · Esc</span></summary>
+    <div class="acc-body">
+      <div class="note">• <code>Alt + N</code>: Abrir modal de novo lançamento rápido (Cartão, Fora do cartão ou Estimativa futura)<br>• <code>Alt + T</code>: Alternar entre modo claro e modo escuro<br>• <code>Esc</code>: Fechar modal rápido, menu ou limpar seleção em lote</div>
+    </div>
+  </details>`;
 }
 const pctBox=()=>`<span class="note"><b>Regra de divisão:</b> Despesas individuais (Cristian ou Pedro, incl. QuintoAndar do Pedro) = <b>100% individuais</b> · Despesas Conjuntas (Aluguel, Carro e itens Conjunto) = <b>50% / 50% (meio a meio)</b></span>`;
 
@@ -2951,27 +3005,33 @@ function rImp(){
     </div>`;
   }
   const rulesList=Object.entries(S.rules).filter(([k,r])=>!F.rtxt||k.includes(norm(F.rtxt))||norm(r.exemplo||'').includes(norm(F.rtxt))||norm(r.cat||'').includes(norm(F.rtxt))).sort((a,b)=>(a[1].exemplo||a[0]).localeCompare(b[1].exemplo||b[0]));
-  return `<div class="panel" id="dropzone"><h2>1. Importar fatura do Itaú</h2>
-  <div class="note">Baixe a planilha da fatura no app do Itaú e envie (ou arraste) aqui. O app importa automaticamente o <b>Nome do portador</b> da planilha e sugere categoria/tipo a partir de <b>${Object.keys(S.rules).length}</b> estabelecimentos memorizados. Nada entra nos cálculos até você revisar e validar (✓).</div>
-  <div class="bar"><label class="b">Escolher arquivo (xlsx)<input type="file" accept=".xlsx,.xls" id="impx" hidden></label><span class="note">ou solte o arquivo .xlsx aqui</span></div></div>
-  ${pre}
-  <div class="panel">
-    <h2>1B. Importar Extrato Bancário / Pix (.ofx ou .csv — Itaú / Nubank / Inter)</h2>
-    <div class="note" style="margin-bottom:8px">Traga lançamentos de débito, Pix ou boletos da conta corrente para não perder nenhum gasto fora do cartão. Pagamentos da fatura do cartão são detectados e desmarcados automaticamente para evitar dupla contagem.</div>
-    <div id="bank-dropzone" class="bank-drop">
-      <div class="bar" style="margin:0;justify-content:space-between">
-        <div class="bar" style="margin:0">
-          <label class="b">Escolher extrato (.ofx / .csv)<input type="file" accept=".ofx,.csv,.txt" id="imp-bank" hidden></label>
-          <span class="note">ou arraste e solte o arquivo aqui</span>
+  return `<div class="sec-lbl">Passo 1 — Importar Arquivos</div>
+  <div class="row">
+    <div class="panel" id="dropzone" style="flex:1;min-width:290px">
+      <h2>1. Fatura do Cartão Itaú (.xlsx)</h2>
+      <div class="note" style="margin-bottom:10px">Lê portador, parcelas e sugere categorias com <b>${Object.keys(S.rules).length}</b> regras memorizadas.</div>
+      <div class="bar" style="margin:0"><label class="b">Escolher arquivo (.xlsx)<input type="file" accept=".xlsx,.xls" id="impx" hidden></label><span class="note">ou solte aqui</span></div>
+    </div>
+    <div class="panel" style="flex:1;min-width:290px">
+      <h2>1B. Extrato Bancário / Pix (.ofx / .csv)</h2>
+      <div class="note" style="margin-bottom:10px">Itaú, Nubank ou Inter — ignora pagamentos de fatura para não duplicar.</div>
+      <div id="bank-dropzone" class="bank-drop">
+        <div class="bar" style="margin:0;justify-content:space-between">
+          <div class="bar" style="margin:0">
+            <label class="b">Escolher extrato (.ofx / .csv)<input type="file" accept=".ofx,.csv,.txt" id="imp-bank" hidden></label>
+            <span class="note">ou solte aqui</span>
+          </div>
+          <label class="note" style="display:inline-flex;align-items:center;gap:6px">Titular:
+            <select id="bank-def-quem">${quemOpts(defQuem)}</select>
+          </label>
         </div>
-        <label class="note" style="display:inline-flex;align-items:center;gap:6px">Titular padrão:
-          <select id="bank-def-quem">${quemOpts(defQuem)}</select>
-        </label>
       </div>
     </div>
   </div>
+  ${pre}
   ${bankPre}
-  <div class="panel"><h2>2. Revisar lançamentos (${rev.length})</h2>
+  <div class="sec-lbl">Passo 2 — Revisar &amp; Regras</div>
+  <div class="panel"><h2>2. Revisar lançamentos pendentes (${rev.length})</h2>
   ${rev.length?`<div class="bar"><button class="b" data-act="ok-all">Confirmar todos (${rev.length} validados)</button><span class="note">Selecione vários itens para alterar Quem/Tipo/Categoria ou validar em lote.</span></div>`:'<div class="note">Nada pendente. Tudo validado.</div>'}
   <datalist id="cats">${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
   ${batchBar(rev,true)}
@@ -2982,17 +3042,21 @@ function rImp(){
    <td class="l"><input list="cats" data-f="cat" value="${esc(x.cat)}"></td>
    <td class="l">${['fixa','assinatura_mensal','assinatura_anual'].includes(x.tipo)?`<input type="month" data-f="fim" value="${x.fim||''}">`:''}</td>
    <td><button class="b" data-act="ok-tx" title="Confirmar">✓</button></td></tr>`).join('')}</table></div>`:''}</div>
-  <div class="panel"><details id="rdet" ${rulesOpen?'open':''}><summary style="cursor:pointer;font-weight:600;color:var(--petrol-dark)">3. Regras de estabelecimentos memorizados (${Object.keys(S.rules).length})</summary>
-  <div class="note" style="margin-top:8px">Prefixos de maquininhas/apps (IFD*, UBER*, MP*, PAG*) são limpos automaticamente. Edite ou exclua qualquer regra abaixo.</div>
-  <div class="bar"><input id="frtxt" placeholder="Buscar estabelecimento ou categoria" value="${esc(F.rtxt)}" style="width:260px"><span class="note">${rulesList.length} regra(s) exibida(s)</span></div>
-  <div class="tw" style="max-height:45vh"><table><tr><th class="l">Chave</th><th class="l">Exemplo de descrição</th><th class="l">Tipo padrão</th><th class="l">Categoria</th><th class="l">Quem (se s/ portador)</th><th class="l">Até (mês)</th><th></th></tr>
-  ${rulesList.map(([k,r])=>`<tr data-rule="${esc(k)}"><td class="l"><code>${esc(k)}</code></td><td class="l">${esc(r.exemplo||k)}</td>
-   <td class="l"><select data-rf="tipo">${opts(TIPOS,r.tipo)}</select></td>
-   <td class="l"><input list="cats" data-rf="cat" value="${esc(r.cat||'')}"></td>
-   <td class="l"><select data-rf="quem">${quemOpts(r.quem)}</select></td>
-   <td class="l">${['fixa','assinatura_mensal','assinatura_anual'].includes(r.tipo)?`<input type="month" data-rf="fim" value="${r.fim||''}">`:''}</td>
-   <td><button class="b r" data-act="del-rule" title="Excluir regra">×</button></td></tr>`).join('')}
-  </table></div></details></div>`;
+  <details class="acc" id="rdet" ${rulesOpen?'open':''}>
+    <summary><span>⚙️ 3. Regras de estabelecimentos memorizados (${Object.keys(S.rules).length})</span></summary>
+    <div class="acc-body">
+      <div class="note">Prefixos de maquininhas/apps (IFD*, UBER*, MP*, PAG*) são limpos automaticamente. Edite ou exclua qualquer regra abaixo.</div>
+      <div class="bar"><input id="frtxt" placeholder="Buscar estabelecimento ou categoria" value="${esc(F.rtxt)}" style="width:260px"><span class="note">${rulesList.length} regra(s) exibida(s)</span></div>
+      <div class="tw" style="max-height:45vh"><table><tr><th class="l">Chave</th><th class="l">Exemplo de descrição</th><th class="l">Tipo padrão</th><th class="l">Categoria</th><th class="l">Quem (se s/ portador)</th><th class="l">Até (mês)</th><th></th></tr>
+      ${rulesList.map(([k,r])=>`<tr data-rule="${esc(k)}"><td class="l"><code>${esc(k)}</code></td><td class="l">${esc(r.exemplo||k)}</td>
+       <td class="l"><select data-rf="tipo">${opts(TIPOS,r.tipo)}</select></td>
+       <td class="l"><input list="cats" data-rf="cat" value="${esc(r.cat||'')}"></td>
+       <td class="l"><select data-rf="quem">${quemOpts(r.quem)}</select></td>
+       <td class="l">${['fixa','assinatura_mensal','assinatura_anual'].includes(r.tipo)?`<input type="month" data-rf="fim" value="${r.fim||''}">`:''}</td>
+       <td><button class="b r" data-act="del-rule" title="Excluir regra">×</button></td></tr>`).join('')}
+      </table></div>
+    </div>
+  </details>`;
 }
 
 const histFats=()=>[...new Set([...S.tx.map(x=>x.fatura),...Object.keys(S.extras.closedMonths||{})])].filter(Boolean).sort();
